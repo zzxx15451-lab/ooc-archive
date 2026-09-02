@@ -1,0 +1,3572 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OOC 보관 아카이브 | ARCHIVE DATABASE</title>
+  <!-- Favicon SVG -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23101f42'/><rect x='15' y='15' width='70' height='70' rx='10' fill='%23ffffff'/><rect x='25' y='25' width='50' height='14' fill='%231d4ed8'/><rect x='25' y='45' width='35' height='8' fill='%23dc2626'/><rect x='25' y='58' width='50' height='8' fill='%2364748b'/><rect x='25' y='71' width='25' height='8' fill='%2364748b'/></svg>" />
+  
+  <!-- Pretendard 폰트 -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paint: {
+              dark: '#0a1128',
+              navy: '#101f42',
+              blue: '#1d4ed8',
+              'blue-hover': '#1e40af',
+              'blue-light': '#eff6ff',
+              red: '#dc2626',
+              'red-hover': '#b91c1c',
+              border: '#e2e8f0',
+              'border-strong': '#cbd5e1',
+            }
+          },
+          fontFamily: {
+            sans: ['Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'Roboto', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@0.475.0"></script>
+
+  <style>
+    body {
+      background-color: #f8fafc;
+      color: #0f172a;
+      font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* 연관 문구 클릭 시 깜빡임 하이라이트 */
+    @keyframes highlight-pulse {
+      0% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.8), 0 10px 15px -3px rgba(0,0,0,0.1); transform: scale(1.01); }
+      50% { box-shadow: 0 0 0 6px rgba(29, 78, 216, 0.8), 0 10px 15px -3px rgba(0,0,0,0.1); }
+      100% { box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(203, 213, 225, 0.8); transform: scale(1); }
+    }
+    .highlight-quote { animation: highlight-pulse 2s ease-in-out; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-100 flex flex-col selection:bg-paint-blue selection:text-white">
+
+  <!-- ==================== HEADER ==================== -->
+  <header class="bg-paint-dark border-b border-slate-800 text-white shadow-lg sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded bg-paint-blue flex items-center justify-center shadow-md border border-blue-400/30">
+            <i data-lucide="database" class="w-5 h-5 text-white"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-extrabold tracking-wider text-base sm:text-lg font-mono text-white">
+                OOC ARCHIVE
+              </span>
+            </div>
+            <p class="text-xs text-slate-400 font-mono">
+              보관된 문구: <span id="headerTotalCount" class="text-blue-400 font-bold">0</span> 건
+            </p>
+          </div>
+        </div>
+
+        <!-- Mobile Buttons -->
+        <div class="flex md:hidden items-center gap-1.5">
+          <button onclick="openRandomModal()" title="랜덤 추천" class="p-2 rounded bg-slate-800 hover:bg-slate-700 text-red-400 border border-slate-700">
+            <i data-lucide="dices" class="w-4 h-4"></i>
+          </button>
+          <button onclick="openBackupModal()" title="백업/복원" class="p-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">
+            <i data-lucide="hard-drive-download" class="w-4 h-4"></i>
+          </button>
+          <button onclick="openQuoteModal()" class="px-3 py-1.5 rounded bg-paint-blue hover:bg-paint-blue-hover text-white text-xs font-bold flex items-center gap-1 shadow">
+            <i data-lucide="plus" class="w-4 h-4"></i> 등록
+          </button>
+        </div>
+      </div>
+
+      <!-- Desktop Buttons -->
+      <div class="hidden md:flex items-center gap-2.5">
+        <button onclick="openRandomModal()" class="px-3.5 py-2 rounded bg-slate-800/90 hover:bg-slate-800 hover:border-red-500/50 text-red-300 border border-slate-700 text-xs font-bold flex items-center gap-2 transition-colors shadow-sm">
+          <i data-lucide="dices" class="w-4 h-4 text-paint-red"></i>
+          <span>랜덤 추천</span>
+        </button>
+
+        <button onclick="openBackupModal()" class="px-3.5 py-2 rounded bg-slate-800/90 hover:bg-slate-800 hover:border-slate-500 text-slate-300 border border-slate-700 text-xs font-medium flex items-center gap-2 transition-colors shadow-sm">
+          <i data-lucide="hard-drive-download" class="w-4 h-4 text-blue-400"></i>
+          <span>백업 / 복원</span>
+        </button>
+
+        <button onclick="openQuoteModal()" class="px-4 py-2 rounded bg-paint-blue hover:bg-paint-blue-hover text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>새 문구 등록</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Control Console: Realtime Macro Substitution & Search -->
+    <div class="bg-paint-navy border-t border-slate-800/80 px-4 sm:px-6 py-2.5">
+      <div class="max-w-7xl mx-auto flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+        
+        <!-- Macro Replacer Controls -->
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <div class="flex items-center gap-1 text-slate-300 font-mono font-semibold">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-yellow-400"></i>
+            <span>실시간 치환:</span>
+          </div>
+
+          <div class="flex items-center bg-slate-900 border border-slate-700 rounded px-2 py-1 gap-1.5 focus-within:border-blue-500">
+            <span class="font-mono text-blue-400 font-bold text-[11px] select-none">{{char}}</span>
+            <span class="text-slate-600">→</span>
+            <input
+              id="inputCharName"
+              type="text"
+              placeholder="캐릭터명"
+              oninput="handleMacroChange()"
+              class="bg-transparent border-none text-white text-xs focus:outline-none w-20 sm:w-24 placeholder-slate-500 font-medium"
+            />
+          </div>
+
+          <div class="flex items-center bg-slate-900 border border-slate-700 rounded px-2 py-1 gap-1.5 focus-within:border-red-500">
+            <span class="font-mono text-red-400 font-bold text-[11px] select-none">{{user}}</span>
+            <span class="text-slate-600">→</span>
+            <input
+              id="inputUserName"
+              type="text"
+              placeholder="유저명"
+              oninput="handleMacroChange()"
+              class="bg-transparent border-none text-white text-xs focus:outline-none w-20 sm:w-24 placeholder-slate-500 font-medium"
+            />
+          </div>
+
+          <!-- Preview Toggle Button -->
+          <button
+            id="btnTogglePreview"
+            onclick="togglePreview()"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded font-medium text-xs transition-all border bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200"
+          >
+            <i data-lucide="toggle-left" class="w-4 h-4 text-slate-500"></i>
+            <span id="txtTogglePreview">치환 미리보기 OFF</span>
+          </button>
+        </div>
+
+        <!-- Quick Search Box (디바운스 검색 탑재) -->
+        <div class="relative w-full lg:w-72">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+          <input
+            id="searchInput"
+            type="text"
+            placeholder="문구, 출처, 메모, 태그 검색..."
+            oninput="handleSearchInput(this.value)"
+            class="w-full bg-slate-900/90 border border-slate-700 rounded text-xs text-white pl-9 pr-8 py-1.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-slate-500 transition-all"
+          />
+          <button
+            id="btnClearSearch"
+            onclick="clearSearch()"
+            class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+          >
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN CONTENT ==================== -->
+  <main class="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 flex-1 flex flex-col lg:flex-row gap-6 items-start">
+    
+    <!-- ========== SIDEBAR ========== -->
+    <aside class="w-full lg:w-72 shrink-0 flex flex-col gap-5">
+      
+      <!-- 뷰 모드 및 정렬 -->
+      <div class="bg-white rounded-lg border border-paint-border p-4 shadow-sm">
+        <div class="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100">
+          <div class="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider font-mono">
+            <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-paint-blue"></i>
+            <span>디스플레이 설정</span>
+          </div>
+
+          <div class="flex items-center bg-slate-100 p-0.5 rounded border border-slate-200">
+            <button
+              id="btnViewCard"
+              onclick="setViewMode('card')"
+              title="카드 뷰"
+              class="p-1 rounded text-xs transition-colors bg-white text-paint-blue shadow-sm font-bold"
+            >
+              <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+            </button>
+            <button
+              id="btnViewCompact"
+              onclick="setViewMode('compact')"
+              title="컴팩트 뷰"
+              class="p-1 rounded text-xs transition-colors text-slate-500 hover:text-slate-800"
+            >
+              <i data-lucide="list" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between gap-2 text-xs">
+          <span class="text-slate-500 font-medium">정렬 기준:</span>
+          <select
+            id="selectSort"
+            onchange="handleSortChange(this.value)"
+            class="bg-slate-50 border border-slate-300 rounded px-2 py-1 text-slate-700 font-medium focus:outline-none focus:border-paint-blue text-xs"
+          >
+            <option value="alphabetical" selected>가나다순</option>
+            <option value="docNumber">시리얼 번호순</option>
+            <option value="newest">최신 등록순</option>
+            <option value="oldest">오래된 순</option>
+            <option value="chars-desc">글자수 많은 순</option>
+            <option value="chars-asc">글자수 적은 순</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 보관함 필터 -->
+      <div class="bg-white rounded-lg border border-paint-border overflow-hidden shadow-sm">
+        <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider font-mono flex items-center gap-2">
+          <i data-lucide="layers" class="w-3.5 h-3.5 text-paint-blue"></i>
+          <span>보관함 필터</span>
+        </div>
+
+        <div class="p-2 flex flex-col gap-1">
+          <!-- 전체 문구 -->
+          <button
+            id="btnFilterAll"
+            onclick="selectAllQuotes()"
+            class="w-full flex items-center justify-between px-3 py-2 rounded text-xs font-bold transition-colors bg-paint-blue text-white shadow-sm"
+          >
+            <div class="flex items-center gap-2">
+              <i data-lucide="layers" class="w-4 h-4"></i>
+              <span>전체 문구</span>
+            </div>
+            <span id="badgeTotalCount" class="px-1.5 py-0.5 rounded text-[11px] font-mono bg-blue-800 text-blue-100">0</span>
+          </button>
+
+          <!-- 즐겨찾기 -->
+          <button
+            id="btnFilterFav"
+            onclick="toggleFavoriteFilter()"
+            class="w-full flex items-center justify-between px-3 py-2 rounded text-xs font-medium transition-colors text-slate-700 hover:bg-amber-50 hover:text-amber-700"
+          >
+            <div class="flex items-center gap-2">
+              <i data-lucide="star" class="w-4 h-4 text-amber-400 fill-amber-400"></i>
+              <span>즐겨찾기 모아보기</span>
+            </div>
+            <span id="badgeFavCount" class="px-1.5 py-0.5 rounded text-[11px] font-mono bg-amber-100 text-amber-800 font-bold">0</span>
+          </button>
+
+          <!-- 빨간맛 모아보기 -->
+          <button
+            id="btnFilterSpicy"
+            onclick="toggleSpicyFilter()"
+            class="w-full flex items-center justify-between px-3 py-2 rounded text-xs font-medium transition-colors text-slate-700 hover:bg-rose-50 hover:text-rose-700"
+          >
+            <div class="flex items-center gap-2">
+              <i data-lucide="heart" class="w-4 h-4 text-rose-500 fill-rose-500"></i>
+              <span>빨간맛 모아보기</span>
+            </div>
+            <span id="badgeSpicyCount" class="px-1.5 py-0.5 rounded text-[11px] font-mono bg-rose-100 text-rose-800 font-bold">0</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 시리즈 컬렉션 -->
+      <div class="bg-white rounded-lg border border-paint-border overflow-hidden shadow-sm">
+        <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider font-mono flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i data-lucide="folder" class="w-3.5 h-3.5 text-paint-blue"></i>
+            <span>시리즈 컬렉션</span>
+          </div>
+          <button onclick="toggleAddSeriesForm()" title="새 시리즈 추가" class="text-slate-500 hover:text-paint-blue p-0.5 rounded hover:bg-slate-200 transition-colors">
+            <i data-lucide="folder-plus" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div id="addSeriesForm" class="hidden p-3 bg-blue-50/50 border-b border-blue-100">
+          <div class="flex gap-1.5">
+            <input
+              id="inputNewSeriesName"
+              type="text"
+              placeholder="새 시리즈명..."
+              class="flex-1 text-xs border border-blue-300 rounded px-2 py-1 bg-white focus:outline-none focus:border-paint-blue"
+            />
+            <button onclick="submitNewSeries()" class="px-2.5 py-1 bg-paint-blue text-white rounded text-xs font-bold hover:bg-paint-blue-hover">
+              추가
+            </button>
+          </div>
+        </div>
+
+        <div id="seriesListContainer" class="p-2 flex flex-col gap-1 max-h-60 overflow-y-auto">
+          <!-- JS 렌더링 -->
+        </div>
+      </div>
+
+      <!-- 태그 필터 -->
+      <div class="bg-white rounded-lg border border-paint-border overflow-hidden shadow-sm">
+        <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider font-mono flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i data-lucide="tag" class="w-3.5 h-3.5 text-paint-blue"></i>
+            <span>태그 필터</span>
+          </div>
+          <button id="btnClearTags" onclick="clearTags()" class="hidden text-[11px] text-paint-red hover:underline flex items-center gap-1">
+            <i data-lucide="rotate-ccw" class="w-3 h-3"></i> 초기화
+          </button>
+        </div>
+
+        <div class="p-3">
+          <div id="tagCloudContainer" class="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto pr-1">
+            <!-- JS 렌더링 -->
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ========== FEED / CONTENT ========== -->
+    <section class="flex-1 w-full min-w-0 flex flex-col gap-4">
+      
+      <!-- 상태 필터 바 -->
+      <div class="bg-white border border-paint-border rounded-lg px-4 py-2.5 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div id="activeFilterBadges" class="flex items-center gap-2 flex-wrap">
+          <span class="font-bold text-slate-800 font-mono">
+            검색 결과: <span id="filteredCount" class="text-paint-blue">0</span>건
+          </span>
+        </div>
+
+        <button
+          id="btnResetAllFilters"
+          onclick="resetAllFilters()"
+          class="hidden text-paint-red hover:underline flex items-center gap-1 font-semibold"
+        >
+          <i data-lucide="filter-x" class="w-3.5 h-3.5"></i>
+          <span>필터 초기화</span>
+        </button>
+      </div>
+
+      <!-- 카드 목록 컨테이너 -->
+      <div id="quotesContainer" class="flex flex-col gap-4">
+        <!-- JS 렌더링 -->
+      </div>
+
+      <!-- 대용량 더 보기 / 지연 로딩 트리거 -->
+      <div id="loadMoreSection" class="hidden py-4 text-center">
+        <button
+          id="btnLoadMore"
+          onclick="loadMoreQuotes()"
+          class="px-6 py-2.5 bg-white hover:bg-slate-50 border-2 border-slate-300 hover:border-paint-blue rounded-full text-xs font-bold text-slate-700 shadow-sm transition-all flex items-center gap-2 mx-auto"
+        >
+          <i data-lucide="chevron-down" class="w-4 h-4 text-paint-blue"></i>
+          <span id="txtLoadMore">문구 더 보기 (+30건)</span>
+        </button>
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. 문구 등록/수정 모달 -->
+  <div id="quoteModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
+    <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-3xl sm:max-w-4xl overflow-hidden my-8" onclick="event.stopPropagation()">
+      <div class="bg-paint-navy border-b border-slate-700 px-4 sm:px-5 py-2.5 flex items-center justify-between text-white shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-paint-blue"></span>
+          <h2 id="quoteModalTitle" class="font-bold text-xs sm:text-sm font-mono tracking-wide">
+            새 문구 등록 [NEW ENTRY]
+          </h2>
+        </div>
+        <button onclick="closeQuoteModal()" class="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleQuoteSubmit(event)" class="px-5 sm:px-6 py-4 flex flex-col gap-3.5 max-h-[85vh] overflow-y-auto">
+        <input type="hidden" id="editQuoteId" value="" />
+
+        <!-- 문구 이름 / 제목 -->
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1">
+            <i data-lucide="type" class="w-3.5 h-3.5 text-paint-blue"></i>
+            <span>문구 이름 (제목)</span>
+          </label>
+          <input
+            id="quoteTitle"
+            type="text"
+            placeholder="미입력 시 #DOC 번호로 자동 표기"
+            class="w-full text-xs sm:text-sm border border-slate-300 rounded px-3 py-2 font-medium text-slate-800 focus:outline-none focus:border-paint-blue focus:ring-1 focus:ring-paint-blue placeholder:text-slate-400"
+          />
+        </div>
+
+        <!-- 본문 & 툴바 -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <label class="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono">
+              문구 본문 <span class="text-paint-red">*</span>
+            </label>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button type="button" onmousedown="event.preventDefault()" onclick="insertMacro('{{char}}', event)" class="px-2 py-0.5 rounded bg-blue-100 hover:bg-blue-200 text-paint-blue border border-blue-300 text-[11px] font-mono font-bold">
+                + {{char}}
+              </button>
+              <button type="button" onmousedown="event.preventDefault()" onclick="insertMacro('{{user}}', event)" class="px-2 py-0.5 rounded bg-red-100 hover:bg-red-200 text-paint-red border border-red-300 text-[11px] font-mono font-bold">
+                + {{user}}
+              </button>
+              <span class="text-slate-300">|</span>
+              <button type="button" onclick="toggleEditorMacroNpc()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors" title="{{char}}/{{user}} ↔ NPC/PC 상호 변환">
+                <i data-lucide="arrow-right-left" class="w-3.5 h-3.5 text-slate-500"></i>
+                <span>{{char}} ↔ NPC 변환</span>
+              </button>
+              <button type="button" id="btnRestoreOriginal" onclick="restoreEditorOriginal()" class="hidden px-2.5 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors" title="처음 입력했던 원문으로 즉시 되돌리기">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-amber-600"></i>
+                <span>원문 복원</span>
+              </button>
+            </div>
+          </div>
+
+          <textarea
+            id="quoteContent"
+            rows="12"
+            required
+            oninput="updateEditorCharCount()"
+            placeholder="스크랩한 문구 본문을 입력하세요. {{char}}와 {{user}}를 사용할 수 있습니다."
+            class="w-full text-sm sm:text-base min-h-[260px] sm:min-h-[340px] p-3.5 border border-slate-300 rounded focus:outline-none focus:border-paint-blue focus:ring-1 focus:ring-paint-blue leading-relaxed font-sans resize-y"
+          ></textarea>
+
+          <div class="flex items-center justify-end text-xs font-mono text-slate-500">
+            <span>공백 포함: <strong id="editorTotalCount" class="text-slate-800 font-bold">0</strong>자</span>
+          </div>
+        </div>
+
+        <!-- 영문 버전 (선택 사항) 접이식 패널 -->
+        <div class="border border-slate-200 rounded p-2.5 bg-slate-50/60 flex flex-col gap-1.5">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <span class="text-sm">🇺🇸</span>
+              <span>영어 버전</span>
+              <span class="text-[10px] font-normal text-slate-400 font-mono">(선택)</span>
+            </label>
+            <button
+              type="button"
+              id="btnToggleEnEditor"
+              onclick="toggleEnEditorInput()"
+              class="text-xs text-paint-blue hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+            >
+              <i data-lucide="languages" class="w-3.5 h-3.5 text-paint-blue"></i>
+              <span id="btnToggleEnEditorText">영어 버전 입력창 열기</span>
+            </button>
+          </div>
+          <div id="enEditorContainer" class="hidden flex flex-col gap-1.5 mt-1">
+            <textarea
+              id="quoteContentEn"
+              rows="5"
+              oninput="updateEditorEnCharCount()"
+              placeholder="English version of the quote... (Supports {{char}}, {{user}})"
+              class="w-full text-xs sm:text-sm p-3 border border-slate-300 rounded font-sans focus:outline-none focus:border-paint-blue leading-relaxed"
+            ></textarea>
+            <div class="text-[11px] text-slate-400 flex items-center justify-end font-mono">
+              <span>영어 본문 글자수: <strong id="editorEnTotalCount" class="text-slate-700 font-bold">0</strong>자</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 소속 시리즈 (단독 영역) -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1">
+              <i data-lucide="folder" class="w-3.5 h-3.5 text-paint-blue"></i>
+              <span>소속 시리즈</span>
+            </label>
+            <span id="modalSelectedSeriesCount" class="text-[11px] font-mono text-paint-blue font-bold">0개 선택됨</span>
+          </div>
+
+          <!-- 내가 고른 시리즈만 표기되는 영역 -->
+          <div id="modalSelectedSeriesChips" class="flex flex-wrap items-center gap-1.5 min-h-[36px] p-1.5 bg-slate-50 border border-slate-200 rounded">
+            <!-- JS에서 선택한 시리즈만 칩으로 렌더링 -->
+          </div>
+
+          <!-- 스크롤 형태로 고르는 드롭다운 & 새 시리즈 추가 -->
+          <div class="flex flex-col sm:flex-row gap-1.5 mt-0.5">
+            <select
+              id="modalSeriesPickerSelect"
+              onchange="handlePickSeries(this.value)"
+              class="flex-1 text-xs border border-slate-300 rounded px-2.5 py-1.5 bg-white text-slate-700 font-medium focus:outline-none focus:border-paint-blue cursor-pointer"
+            >
+              <option value="">▼ 시리즈 목록에서 선택...</option>
+            </select>
+
+            <div class="flex gap-1 items-center">
+              <input
+                id="modalSeriesCustomInput"
+                type="text"
+                placeholder="새 시리즈 직접 추가"
+                class="text-xs border border-slate-300 rounded px-2.5 py-1.5 w-32 sm:w-36 focus:outline-none focus:border-paint-blue"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();addModalSeriesFromInput();}"
+              />
+              <button
+                type="button"
+                onclick="addModalSeriesFromInput()"
+                class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold rounded shadow-xs active:scale-95 shrink-0"
+              >
+                추가
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 태그 -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1">
+            <i data-lucide="tag" class="w-3.5 h-3.5 text-paint-blue"></i>
+            <span>태그 (쉼표 또는 ENTER로 추가)</span>
+          </label>
+          <div class="flex gap-2">
+            <input id="tagInput" type="text" onkeydown="handleTagKeydown(event)" placeholder="태그 입력..." class="flex-1 text-xs border border-slate-300 rounded px-2.5 py-1.5 focus:outline-none focus:border-paint-blue" />
+            <button type="button" onclick="addTagFromInput()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold border border-slate-300">추가</button>
+          </div>
+          <div id="modalTagChips" class="flex flex-wrap gap-1.5 mt-1"></div>
+        </div>
+
+        <!-- 연관 문구 연결 -->
+        <div class="flex flex-col gap-1.5 border border-slate-200 rounded p-3 bg-slate-50/50">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1">
+              <i data-lucide="link-2" class="w-3.5 h-3.5 text-paint-blue"></i>
+              <span>연관 문구 연결 (<span id="modalRelatedCount">0</span>개 선택됨)</span>
+            </label>
+            <button type="button" onclick="toggleRelatedPicker()" class="text-xs text-paint-blue hover:underline font-semibold">
+              <span id="btnToggleRelatedText">문구 선택창 열기</span>
+            </button>
+          </div>
+
+          <div id="relatedPickerBox" class="hidden mt-2 border border-slate-300 rounded bg-white p-2.5 flex flex-col gap-2">
+            <div class="relative">
+              <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+              <input id="modalRelatedSearch" type="text" oninput="renderRelatedCandidateList()" placeholder="연결할 문구 검색..." class="w-full text-xs pl-8 pr-2.5 py-1 border border-slate-200 rounded focus:outline-none focus:border-paint-blue" />
+            </div>
+            <div id="relatedCandidateList" class="max-h-40 overflow-y-auto flex flex-col gap-1 divide-y divide-slate-100">
+              <!-- JS 렌더링 -->
+            </div>
+          </div>
+
+          <div id="modalSelectedRelatedChips" class="flex flex-wrap gap-1.5 mt-1"></div>
+        </div>
+
+        <!-- 메모 -->
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1">
+            <i data-lucide="message-square" class="w-3.5 h-3.5 text-paint-blue"></i>
+            <span>메모</span>
+          </label>
+          <textarea id="quoteMemo" rows="2" class="w-full text-xs p-2.5 border border-slate-300 rounded focus:outline-none focus:border-paint-blue"></textarea>
+        </div>
+
+        <!-- 즐겨찾기 & 빨간맛 등급 -->
+        <div class="flex items-center gap-6 pt-1 flex-wrap">
+          <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none hover:text-amber-600 transition-colors">
+            <input id="quoteFavorite" type="checkbox" class="rounded text-amber-500 focus:ring-amber-400 w-4 h-4 border-slate-300" />
+            <i data-lucide="star" class="w-4 h-4 text-amber-400 fill-amber-400"></i>
+            <span>즐겨찾기에 등록</span>
+          </label>
+
+          <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none hover:text-rose-600 transition-colors">
+            <input id="quoteSpicy" type="checkbox" class="rounded text-rose-500 focus:ring-rose-400 w-4 h-4 border-slate-300" />
+            <i data-lucide="heart" class="w-4 h-4 text-rose-500 fill-rose-500"></i>
+            <span>빨간맛 등급 부여</span>
+          </label>
+        </div>
+
+        <!-- 푸터 -->
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200 mt-2">
+          <button type="button" onclick="closeQuoteModal()" class="px-4 py-2 rounded border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold">닫기</button>
+          <button type="submit" class="px-5 py-2 rounded bg-paint-blue hover:bg-paint-blue-hover text-white text-xs font-bold shadow-md active:scale-95">저장하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. 랜덤 추천 모달 -->
+  <div id="randomModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
+    <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-2xl sm:max-w-3xl overflow-hidden my-6 flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+      <div class="bg-paint-navy border-b border-slate-700 px-4 sm:px-5 py-2.5 flex items-center justify-between text-white shrink-0">
+        <div class="flex items-center gap-2">
+          <i id="randomDiceIcon" data-lucide="dices" class="w-4 h-4 text-paint-red"></i>
+          <h2 class="font-bold text-xs sm:text-sm font-mono tracking-wide">무작위 문구 추천 [RANDOM SPOTLIGHT]</h2>
+        </div>
+        <button onclick="closeRandomModal()" class="text-slate-400 hover:text-white p-1 rounded">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-5 sm:p-6 flex flex-col gap-3.5 overflow-y-auto flex-1">
+        <div id="randomMetaBar" class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 text-xs">
+          <div class="flex items-center gap-2">
+            <span id="randomDocNumber" class="font-mono text-xs font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">#DOC-0000</span>
+            <span id="randomSeriesBadge" class="text-xs font-semibold bg-blue-50 text-paint-blue px-2 py-0.5 rounded border border-blue-200">시리즈</span>
+          </div>
+          <span id="randomCharCount" class="font-mono text-xs text-slate-500 font-semibold">0자</span>
+        </div>
+
+        <div id="randomContentBox" class="bg-slate-50 border border-slate-200 rounded-lg p-4 sm:p-5 text-slate-800 text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words min-h-[140px] max-h-[50vh] overflow-y-auto select-all shadow-inner font-sans">
+          문구를 추첨하는 중...
+        </div>
+
+        <div class="flex items-center justify-between gap-2 text-xs text-slate-500">
+          <span id="randomSource"></span>
+          <div id="randomTags" class="flex flex-wrap gap-1"></div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200 shrink-0">
+          <button onclick="rollRandomQuote()" class="px-4 py-2 rounded bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold flex items-center gap-1.5 shadow active:scale-95">
+            <i data-lucide="dices" class="w-4 h-4 text-paint-red"></i>
+            <span>다시 굴리기</span>
+          </button>
+          <div class="flex items-center gap-2">
+            <button onclick="jumpToCurrentRandomQuote()" class="px-3 py-2 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium flex items-center gap-1 border border-slate-300">
+              <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              <span>문구로 이동</span>
+            </button>
+            <button onclick="copyRandomQuote()" class="px-4 py-2 rounded bg-paint-blue hover:bg-paint-blue-hover text-white text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95">
+              <i data-lucide="copy" class="w-4 h-4"></i>
+              <span>치환 복사</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 백업 및 복원 모달 -->
+  <div id="backupModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
+    <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-lg overflow-hidden" onclick="event.stopPropagation()">
+      <div class="bg-paint-navy border-b border-slate-700 px-5 py-3.5 flex items-center justify-between text-white">
+        <div class="flex items-center gap-2">
+          <i data-lucide="hard-drive-download" class="w-5 h-5 text-blue-400"></i>
+          <h2 class="font-bold text-sm sm:text-base font-mono tracking-wide">데이터 백업 및 복원 [STORAGE & SYNC]</h2>
+        </div>
+        <button onclick="closeBackupModal()" class="text-slate-400 hover:text-white p-1 rounded">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-5 flex flex-col gap-5">
+        <div class="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-slate-700 flex items-start gap-2.5">
+          <i data-lucide="info" class="w-4 h-4 text-paint-blue shrink-0 mt-0.5"></i>
+          <p class="leading-relaxed">
+            본 아카이브는 브라우저 내부 <strong>IndexedDB 대용량 저장소</strong>에 안전하게 보관됩니다. 다른 기기로 옮기실 때는 <strong>JSON 백업 파일</strong>을 사용하세요.
+          </p>
+        </div>
+
+        <!-- 1. 백업 내보내기 -->
+        <div class="border border-slate-200 rounded p-4 flex flex-col gap-2.5 bg-slate-50/50">
+          <div>
+            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">1. 데이터 백업 파일 다운로드 (Export)</h3>
+          </div>
+          <button onclick="downloadBackupJson()" class="w-full py-2.5 px-4 rounded bg-paint-blue hover:bg-paint-blue-hover text-white text-xs font-bold flex items-center justify-center gap-2 shadow active:scale-98">
+            <i data-lucide="file-json" class="w-4 h-4"></i>
+            <span>백업 파일(.json) 다운로드</span>
+          </button>
+        </div>
+
+        <!-- 2. 백업 가져오기 -->
+        <div class="border border-slate-200 rounded p-4 flex flex-col gap-3 bg-slate-50/50">
+          <div>
+            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">2. 백업 파일 불러오기 (Import)</h3>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <label class="flex items-center gap-2 p-2 rounded border cursor-pointer border-paint-blue bg-blue-50/70 text-paint-blue font-semibold">
+              <input type="radio" name="importModeRadio" value="merge" checked class="text-paint-blue" />
+              <span>기존 데이터에 병합</span>
+            </label>
+            <label class="flex items-center gap-2 p-2 rounded border cursor-pointer border-slate-300 bg-white text-slate-600">
+              <input type="radio" name="importModeRadio" value="overwrite" class="text-paint-red" />
+              <span>덮어쓰기 (초기화)</span>
+            </label>
+          </div>
+
+          <input type="file" id="backupFileInput" accept=".json,application/json" onchange="handleBackupFileUpload(event)" class="hidden" />
+          <button onclick="document.getElementById('backupFileInput').click()" class="w-full py-2.5 px-4 rounded bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold flex items-center justify-center gap-2 shadow active:scale-98">
+            <i data-lucide="upload" class="w-4 h-4"></i>
+            <span>JSON 백업 파일 선택 및 복원</span>
+          </button>
+        </div>
+
+        <!-- 3. GitHub API 클라우드 자동 동기화 -->
+        <div class="border-2 border-blue-200 rounded p-4 flex flex-col gap-3 bg-blue-50/40">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i data-lucide="cloud" class="w-4 h-4 text-paint-blue"></i>
+              <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">3. GitHub 클라우드 자동 동기화 (PC ↔ 모바일)</h3>
+            </div>
+            <span id="githubSyncBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 text-slate-600 font-bold">미연결</span>
+          </div>
+          <p class="text-xs text-slate-500">
+            개인 액세스 토큰을 등록하면 PC와 스마트폰 어디서 접속하든 문구가 실시간으로 안전하게 자동 동기화됩니다.
+          </p>
+
+          <!-- 기본 설정값 (UI 미노출) -->
+          <input id="ghOwnerInput" type="hidden" value="zzxx15451-lab" />
+          <input id="ghRepoInput" type="hidden" value="a_bc" />
+          <input id="ghPathInput" type="hidden" value="OOC_ARCHIVE/data.json" />
+
+          <div class="flex flex-col gap-2.5 text-xs">
+            <div>
+              <label class="font-semibold text-slate-700 block mb-1">개인 액세스 토큰 (Personal Access Token)</label>
+              <input id="ghTokenInput" type="password" placeholder="ghp_xxxxxxxxxxxx (repo 권한)" class="w-full text-xs border border-slate-300 rounded px-2.5 py-2 font-mono focus:border-paint-blue bg-white" />
+              <span class="text-[11px] text-slate-400 mt-1 block">토큰은 브라우저 내부에만 안전하게 저장되며 외부로 전송되지 않습니다.</span>
+            </div>
+
+            <div class="flex items-center justify-between pt-0.5">
+              <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                <input id="ghAutoSyncCheck" type="checkbox" checked class="text-paint-blue rounded" />
+                <span class="font-semibold text-slate-700">문구 추가/수정/삭제 시 깃허브 자동 저장 (Auto-Sync)</span>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mt-1">
+              <button type="button" onclick="testAndSaveGithubSettings()" class="py-2.5 px-3 rounded bg-paint-blue hover:bg-paint-blue-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow active:scale-98">
+                <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                <span>연결 및 저장</span>
+              </button>
+              <button type="button" onclick="manualSyncFromGithub()" class="py-2.5 px-3 rounded bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow active:scale-98">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                <span>깃허브에서 불러오기</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-200 flex items-center justify-between">
+          <span class="text-xs text-slate-400">데이터를 리셋하고 싶을 때:</span>
+          <button onclick="resetToInitialSampleData()" class="text-xs text-slate-500 hover:text-paint-red flex items-center gap-1 hover:underline font-medium">
+            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+            <span>기본 샘플 데이터로 복원</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 전문 읽기 팝업 모달 (Reader Modal) -->
+  <div id="quoteDetailModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
+    <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-3xl overflow-hidden my-6 flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+      <!-- 모달 헤더 -->
+      <div class="bg-paint-navy border-b border-slate-700 px-4 sm:px-5 py-2.5 flex items-center justify-between text-white shrink-0">
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <span id="detailDocNumber" class="font-mono font-bold text-xs bg-slate-800 text-blue-200 px-2.5 py-1 rounded tracking-wider border border-slate-700">
+            #DOC-0001
+          </span>
+          <div id="detailSeriesBadges" class="flex items-center gap-1.5 flex-wrap">
+            <!-- JS 렌더링 -->
+          </div>
+        </div>
+        <div class="flex items-center gap-2 sm:gap-2.5">
+          <!-- 연관 문구 드롭다운 (연결된 문구가 있을 때만 노출) -->
+          <div id="detailRelatedDropdownContainer" class="relative hidden">
+            <button
+              id="btnToggleDetailRelatedList"
+              type="button"
+              onclick="toggleDetailRelatedDropdown()"
+              class="font-mono text-xs bg-slate-800 hover:bg-slate-700 text-blue-200 hover:text-white border border-slate-700 hover:border-blue-400 px-2.5 py-1 rounded shrink-0 flex items-center gap-1.5 font-bold shadow-2xs transition-colors cursor-pointer"
+              title="연관 문구 목록 열기/닫기"
+            >
+              <i data-lucide="link-2" class="w-3.5 h-3.5 text-blue-300"></i>
+              <span id="detailRelatedCountBadge">0</span>
+              <i id="detailRelatedChevron" data-lucide="chevron-down" class="w-3 h-3 text-slate-400"></i>
+            </button>
+
+            <!-- 연관 문구 팝오버 메뉴 -->
+            <div
+              id="detailRelatedDropdownMenu"
+              class="hidden absolute right-0 top-full mt-1.5 w-64 sm:w-80 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-2 z-50 flex flex-col gap-1 max-h-64 overflow-y-auto"
+            >
+              <div class="text-[11px] font-bold text-slate-400 px-2 py-1 border-b border-slate-800 flex items-center justify-between font-mono">
+                <span>연관된 문구 바로가기</span>
+                <span id="detailRelatedDropdownCountText" class="text-blue-400 font-bold">0건</span>
+              </div>
+              <div id="detailRelatedDropdownItems" class="flex flex-col gap-1 pt-1">
+                <!-- JS 렌더링 -->
+              </div>
+            </div>
+          </div>
+
+          <!-- 글자수 표시 (헤더 우측 즐겨찾기 버튼 왼쪽으로 이동) -->
+          <div class="font-mono text-xs bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded shrink-0 flex items-center gap-1 select-none shadow-2xs">
+            <span>공백 포함:</span>
+            <strong id="detailTotalChar" class="text-blue-300 font-bold">0</strong>자
+          </div>
+
+          <!-- 빨간맛 등급 배지 -->
+          <span id="detailSpicyBadge" class="hidden p-1 shrink-0 flex items-center" title="빨간맛">
+            <i data-lucide="heart" class="w-5 h-5 fill-rose-500 text-rose-500"></i>
+          </span>
+
+          <button id="detailFavoriteBtn" onclick="toggleDetailFavorite()" title="즐겨찾기" class="p-1 text-slate-300 hover:text-amber-400 transition-colors">
+            <i data-lucide="star" class="w-5 h-5"></i>
+          </button>
+          <button onclick="closeQuoteDetailModal()" class="text-slate-400 hover:text-white p-1 rounded transition-colors hover:bg-slate-800">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 모달 본문 (스크롤) -->
+      <div class="p-5 sm:p-6 overflow-y-auto flex-1 flex flex-col gap-4">
+        <!-- 메타 정보 (출처가 있을 때만 노출) -->
+        <div id="detailSourceContainer" class="hidden flex items-center justify-between gap-2 text-xs border-b border-slate-100 pb-2.5">
+          <div id="detailSource" class="text-slate-600 italic font-medium truncate"></div>
+        </div>
+
+        <!-- 전문 텍스트 영역 -->
+        <div class="bg-slate-50/70 border border-slate-200 rounded-lg p-5 sm:p-6 select-text">
+          <div id="detailBodyContent" class="text-base sm:text-lg text-slate-900 leading-relaxed font-sans whitespace-pre-wrap"></div>
+        </div>
+
+        <!-- 태그 칩들 -->
+        <div id="detailTagsContainer" class="flex flex-wrap gap-1.5 items-center"></div>
+
+        <!-- 메모 섹션 -->
+        <div id="detailMemoContainer" class="hidden border border-blue-200 bg-blue-50/40 rounded p-4 text-xs sm:text-sm text-slate-700 whitespace-pre-wrap">
+          <div class="flex items-center gap-1.5 font-bold text-paint-blue mb-1.5">
+            <i data-lucide="message-square" class="w-4 h-4"></i>
+            <span>메모 / 해설</span>
+          </div>
+          <div id="detailMemoText"></div>
+        </div>
+
+      </div>
+
+        <!-- 해당 문구 전용 {{char}}, {{user}} 다문자 치환 바 (펼침 패널) -->
+        <div id="detailReplacerBar" class="hidden bg-blue-50/80 border-t border-blue-200 px-5 py-2.5 flex flex-wrap items-center justify-between gap-2.5 text-xs shrink-0">
+          <div class="flex items-center gap-2.5 flex-wrap flex-1">
+            <span class="font-bold text-slate-800 flex items-center gap-1 shrink-0">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-paint-blue"></i>
+              <span>해당 문구 전용 치환:</span>
+            </span>
+            <div class="flex items-center gap-1">
+              <span class="font-mono text-paint-blue font-bold text-xs">{{char}} →</span>
+              <input
+                id="detailCharInput"
+                type="text"
+                placeholder="캐릭터명"
+                oninput="handleDetailOverrideInput()"
+                class="w-24 sm:w-32 px-2.5 py-1 bg-white border border-slate-300 rounded text-xs font-medium text-slate-800 focus:outline-none focus:border-paint-blue focus:ring-1 focus:ring-paint-blue"
+              />
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="font-mono text-paint-red font-bold text-xs">{{user}} →</span>
+              <input
+                id="detailUserInput"
+                type="text"
+                placeholder="유저명"
+                oninput="handleDetailOverrideInput()"
+                class="w-24 sm:w-32 px-2.5 py-1 bg-white border border-slate-300 rounded text-xs font-medium text-slate-800 focus:outline-none focus:border-paint-red focus:ring-1 focus:ring-paint-red"
+              />
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button type="button" onclick="resetDetailOverrides()" class="px-2.5 py-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 text-xs font-medium">
+              기본값 복원
+            </button>
+          </div>
+        </div>
+
+        <!-- 모달 푸터 버튼 바 -->
+        <div class="bg-slate-100 border-t border-slate-200 px-4 py-2.5 flex items-center justify-between gap-1.5 sm:gap-2 shrink-0 flex-wrap">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button onclick="copyDetailQuote(true)" class="px-2.5 py-1.5 rounded bg-paint-blue hover:bg-paint-blue-hover text-white text-[11px] font-bold flex items-center gap-1 shadow active:scale-98">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              <span>치환</span>
+            </button>
+            <button onclick="copyDetailQuote(false)" class="px-2.5 py-1.5 rounded bg-paint-red hover:bg-paint-red-hover text-white text-[11px] font-bold flex items-center gap-1 shadow active:scale-98">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              <span>원문</span>
+            </button>
+            <button onclick="editDetailQuote()" class="px-2.5 py-1.5 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-semibold flex items-center gap-1">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+              <span>수정</span>
+            </button>
+
+            <!-- 구분선 -->
+            <span class="text-slate-300 mx-0.5">|</span>
+
+            <!-- {{char}} ↔ {{user}} 상호 전환 버튼 -->
+            <button id="btnDetailSwapCharUser" onclick="toggleDetailSwapCharUser()" class="px-2.5 py-1.5 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-semibold flex items-center gap-1 transition-all active:scale-95 shrink-0" title="{{char}}와 {{user}} 역할을 서로 맞바꿉니다 (스왑)">
+              <i data-lucide="arrow-left-right" class="w-3.5 h-3.5 text-slate-500"></i>
+              <span id="btnDetailSwapText">{{char}} ↔ {{user}}</span>
+            </button>
+
+            <!-- 문구 치환 버튼 -->
+            <button id="btnToggleDetailReplacer" onclick="toggleDetailReplacerBar()" class="px-2.5 py-1.5 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-semibold flex items-center gap-1 transition-all shrink-0" title="이 문구 전용 {{char}}, {{user}} 단어 치환 설정">
+              <i data-lucide="replace" class="w-3.5 h-3.5 text-slate-500"></i>
+              <span>문구 치환</span>
+            </button>
+
+            <!-- [🇰🇷↔🇺🇸] 한글/영문 버전 전환 버튼 -->
+            <button
+              id="btnDetailToggleLang"
+              type="button"
+              onclick="toggleDetailLanguage()"
+              class="hidden px-2.5 py-1.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold flex items-center gap-1 transition-all active:scale-95 shadow-2xs cursor-pointer shrink-0"
+              title="한글 ↔ 영문 버전 전환"
+            >
+              <span id="detailLangBtnText" class="font-bold text-[11px] tracking-tight">🇰🇷↔🇺🇸</span>
+            </button>
+          </div>
+          <button onclick="closeQuoteDetailModal()" class="px-3 py-1.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[11px] font-bold">
+            닫기
+          </button>
+        </div>
+    </div>
+  </div>
+
+  <!-- 토스트 알림 컨테이너 -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- ==================== JAVASCRIPT ==================== -->
+  <script>
+    /* ========== INDEXED-DB HIGH CAPACITY STORAGE ========== */
+    const DB_NAME = 'OocArchiveDB';
+    const DB_VERSION = 1;
+    let dbConnectionPromise = null;
+
+    function openDB() {
+      if (dbConnectionPromise) return dbConnectionPromise;
+
+      dbConnectionPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('quotes')) {
+            db.createObjectStore('quotes', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('series')) {
+            db.createObjectStore('series', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('settings')) {
+            db.createObjectStore('settings', { keyPath: 'key' });
+          }
+        };
+        request.onsuccess = () => {
+          const database = request.result;
+          database.onversionchange = () => {
+            database.close();
+            dbConnectionPromise = null;
+          };
+          resolve(database);
+        };
+        request.onerror = () => {
+          dbConnectionPromise = null;
+          reject(request.error);
+        };
+      });
+
+      return dbConnectionPromise;
+    }
+
+    async function dbGetAll(storeName) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function dbPutAll(storeName, items) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        store.clear();
+        for (const item of items) {
+          store.put(item);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function dbReplaceState(quoteItems, seriesItems, settings) {
+      const database = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = database.transaction(['quotes', 'series', 'settings'], 'readwrite');
+        const quoteStore = tx.objectStore('quotes');
+        const seriesStore = tx.objectStore('series');
+
+        quoteStore.clear();
+        seriesStore.clear();
+        quoteItems.forEach(item => quoteStore.put(item));
+        seriesItems.forEach(item => seriesStore.put(item));
+        tx.objectStore('settings').put({ key: 'macro', value: settings });
+
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+      });
+    }
+
+    async function dbSaveSettings(settings) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('settings', 'readwrite');
+        const store = tx.objectStore('settings');
+        store.put({ key: 'macro', value: settings });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function dbGetSettings() {
+      const db = await openDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction('settings', 'readonly');
+        const store = tx.objectStore('settings');
+        const req = store.get('macro');
+        req.onsuccess = () => resolve(req.result ? req.result.value : null);
+        req.onerror = () => resolve(null);
+      });
+    }
+
+    /* ========== INITIAL DATA ========== */
+    const DEFAULT_SERIES = [];
+
+    const DEFAULT_QUOTES = [];
+
+    /* ========== STATE ========== */
+    let quotes = [];
+    let seriesList = [];
+    let macroSettings = {
+      charName: '',
+      userName: '',
+      previewReplaced: false
+    };
+    let currentFilter = {
+      search: '',
+      series: null,
+      tags: [],
+      onlyFavorites: false,
+      onlySpicy: false,
+      sortBy: 'alphabetical',
+      viewMode: 'card'
+    };
+
+    // 대용량 가상 지연 로딩 설정 (5,000 ~ 10,000개 대비)
+    const PAGE_CHUNK = 30;
+    let displayedCount = PAGE_CHUNK;
+
+    let editorTags = [];
+    let editorRelated = [];
+    let currentRandomQuote = null;
+    let searchDebounceTimer = null;
+    let macroSaveTimer = null;
+    let githubSyncTimer = null;
+    let quoteById = new Map();
+    let cardLangState = new Map();
+    let detailCurrentLang = 'ko';
+
+    /* ========== STORAGE LOAD/SAVE (INDEXED-DB & AUTO MIGRATE) ========== */
+    async function loadState() {
+      try {
+        let dbQuotes = await dbGetAll('quotes');
+        let dbSeries = await dbGetAll('series');
+        let dbSettings = await dbGetSettings();
+
+        // 1. 기존 LocalStorage 데이터가 있으면 IndexedDB로 자동 마이그레이션
+        if (dbQuotes.length === 0) {
+          const lsQuotes = localStorage.getItem('ooc_quotes');
+          const lsSeries = localStorage.getItem('ooc_series');
+          const lsMacros = localStorage.getItem('ooc_macros');
+          if (lsQuotes) {
+            dbQuotes = JSON.parse(lsQuotes);
+            dbSeries = lsSeries ? JSON.parse(lsSeries) : [...DEFAULT_SERIES];
+            dbSettings = lsMacros ? JSON.parse(lsMacros) : null;
+            await dbPutAll('quotes', dbQuotes);
+            await dbPutAll('series', dbSeries);
+            if (dbSettings) await dbSaveSettings(dbSettings);
+          }
+        }
+
+        // 2. 여전히 비어있으면 초기 샘플 세팅
+        if (dbQuotes.length === 0) {
+          dbQuotes = [...DEFAULT_QUOTES];
+          dbSeries = [...DEFAULT_SERIES];
+          await dbPutAll('quotes', dbQuotes);
+          await dbPutAll('series', dbSeries);
+        }
+
+        // 데모 예시 문구 3개 자동 청소 (사용자 요청 반영)
+        if (dbQuotes.length > 0 && dbQuotes.every(q => q.id && q.id.startsWith('doc-demo-'))) {
+          dbQuotes = [];
+          await dbPutAll('quotes', []);
+          try { localStorage.removeItem('ooc_quotes'); } catch(e){}
+        }
+
+        // 디폴트 설정으로 들어있던 기존 3개 더미 시리즈 자동 청소 (사용자 요청 반영)
+        const obsoleteDefaultIds = ['series-combat', 'series-dialogue', 'series-scenery'];
+        const hasObsolete = dbSeries.some(s => obsoleteDefaultIds.includes(s.id));
+        if (hasObsolete) {
+          const usedSeries = new Set();
+          dbQuotes.forEach(q => {
+            const list = normalizeQuoteSeries(q.series);
+            list.forEach(s => usedSeries.add(s));
+          });
+          dbSeries = dbSeries.filter(s => !obsoleteDefaultIds.includes(s.id) || usedSeries.has(s.name));
+          await dbPutAll('series', dbSeries);
+          try { localStorage.removeItem('ooc_series'); } catch(e){}
+        }
+
+        const normalized = normalizeArchiveData(
+          dbQuotes,
+          dbSeries,
+          dbSettings
+        );
+        quotes = normalized.quotes;
+        seriesList = normalized.series;
+        macroSettings = normalized.settings;
+
+        // GitHub 동기화 설정 로드
+        const ghSaved = await dbGetGithubConfig();
+        if (ghSaved) {
+          githubConfig = { ...githubConfig, ...ghSaved };
+          const elOwner = document.getElementById('ghOwnerInput');
+          const elRepo = document.getElementById('ghRepoInput');
+          const elPath = document.getElementById('ghPathInput');
+          const elToken = document.getElementById('ghTokenInput');
+          const elAuto = document.getElementById('ghAutoSyncCheck');
+          if (elOwner) elOwner.value = githubConfig.owner || 'zzxx15451-lab';
+          if (elRepo) elRepo.value = githubConfig.repo || 'a_bc';
+          if (elPath) elPath.value = githubConfig.path || 'OOC_ARCHIVE/data.json';
+          if (elToken) elToken.value = githubConfig.token || '';
+          if (elAuto) elAuto.checked = Boolean(githubConfig.autoSync);
+          updateGithubSyncUI();
+        }
+
+        applyMacroSettingsToUI();
+
+        // 깃허브 연동되어 있으면 시작 시 최신 데이터 자동 풀
+        if (githubConfig.token && githubConfig.owner && githubConfig.repo) {
+          syncFromGithub(true);
+        }
+      } catch (e) {
+        console.error('IndexedDB 로드 에러:', e);
+        quotes = [...DEFAULT_QUOTES];
+        seriesList = [...DEFAULT_SERIES];
+      }
+    }
+
+    async function saveState(skipGithub = false) {
+      try {
+        await dbReplaceState(quotes, seriesList, macroSettings);
+
+        // 깃허브 자동 저장 트리거
+        if (!skipGithub && githubConfig.token && githubConfig.owner && githubConfig.repo && githubConfig.autoSync) {
+          scheduleGithubSync();
+        }
+      } catch (e) {
+        console.error('IndexedDB 저장 에러:', e);
+      }
+    }
+
+    function scheduleGithubSync() {
+      clearTimeout(githubSyncTimer);
+      githubSyncTimer = setTimeout(() => {
+        syncToGithub(true);
+      }, 750);
+    }
+
+    /* ========== GITHUB API AUTO SYNC ========== */
+    let githubConfig = {
+      owner: 'zzxx15451-lab',
+      repo: 'a_bc',
+      token: '',
+      branch: 'main',
+      path: 'OOC_ARCHIVE/data.json',
+      autoSync: true
+    };
+
+    function utf8ToBase64(str) {
+      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+        return String.fromCharCode('0x' + p1);
+      }));
+    }
+
+    function base64ToUtf8(str) {
+      return decodeURIComponent(Array.prototype.map.call(atob(str.replace(/\s/g, '')), (c) => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+    }
+
+    async function dbSaveGithubConfig(config) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('settings', 'readwrite');
+        const store = tx.objectStore('settings');
+        store.put({ key: 'github', value: config });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function dbGetGithubConfig() {
+      const db = await openDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction('settings', 'readonly');
+        const store = tx.objectStore('settings');
+        const req = store.get('github');
+        req.onsuccess = () => resolve(req.result ? req.result.value : null);
+        req.onerror = () => resolve(null);
+      });
+    }
+
+    function updateGithubSyncUI() {
+      const badge = document.getElementById('githubSyncBadge');
+      if (!badge) return;
+      if (githubConfig.token && githubConfig.owner && githubConfig.repo) {
+        badge.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold flex items-center gap-1';
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>연결됨 (' + escapeHtml(githubConfig.repo) + ')';
+      } else {
+        badge.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 text-slate-600 font-bold';
+        badge.textContent = '미연결';
+      }
+    }
+
+    async function testAndSaveGithubSettings() {
+      const owner = (document.getElementById('ghOwnerInput')?.value.trim()) || 'zzxx15451-lab';
+      const repo = (document.getElementById('ghRepoInput')?.value.trim()) || 'a_bc';
+      const path = (document.getElementById('ghPathInput')?.value.trim()) || 'OOC_ARCHIVE/data.json';
+      const token = document.getElementById('ghTokenInput').value.trim();
+      const autoSync = document.getElementById('ghAutoSyncCheck').checked;
+
+      if (!token) {
+        showToast('개인 액세스 토큰을 입력해주세요.', 'error');
+        document.getElementById('ghTokenInput')?.focus();
+        return;
+      }
+
+      showToast('GitHub 연결을 확인하는 중...', 'success');
+
+      try {
+        const res = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github+json'
+          }
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `오류 코드 ${res.status}`);
+        }
+
+        const repoData = await res.json();
+        const defaultBranch = repoData.default_branch || 'main';
+
+        githubConfig = {
+          owner,
+          repo,
+          token,
+          branch: defaultBranch,
+          path,
+          autoSync
+        };
+
+        await dbSaveGithubConfig(githubConfig);
+        updateGithubSyncUI();
+        showToast('✅ GitHub 저장소 연결에 성공했습니다!', 'success');
+
+        // 저장 직후 깃허브에서 동기화 시도
+        await syncFromGithub(false);
+      } catch (err) {
+        console.error(err);
+        showToast('연결 실패: ' + err.message, 'error');
+      }
+    }
+
+    async function syncToGithub(isSilent = false) {
+      if (!githubConfig.token || !githubConfig.owner || !githubConfig.repo) return false;
+
+      if (!isSilent) showToast('☁️ 깃허브에 데이터 저장 중...', 'success');
+
+      try {
+        const apiUrl = `https://api.github.com/repos/${encodeURIComponent(githubConfig.owner)}/${encodeURIComponent(githubConfig.repo)}/contents/${githubConfig.path}`;
+        
+        let sha = null;
+        const checkRes = await fetch(apiUrl + `?ref=${githubConfig.branch}`, {
+          headers: {
+            'Authorization': `Bearer ${githubConfig.token}`,
+            'Accept': 'application/vnd.github+json'
+          }
+        });
+        if (checkRes.ok) {
+          const fileData = await checkRes.json();
+          sha = fileData.sha;
+        }
+
+        const payloadData = {
+          version: 1,
+          updatedAt: new Date().toISOString(),
+          quotes: quotes,
+          series: seriesList,
+          settings: macroSettings
+        };
+        const jsonContent = JSON.stringify(payloadData, null, 2);
+        const encodedContent = utf8ToBase64(jsonContent);
+
+        const putBody = {
+          message: `Update quotes (${quotes.length} items) via OOC Archive`,
+          content: encodedContent,
+          branch: githubConfig.branch
+        };
+        if (sha) putBody.sha = sha;
+
+        const putRes = await fetch(apiUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${githubConfig.token}`,
+            'Accept': 'application/vnd.github+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(putBody)
+        });
+
+        if (!putRes.ok) {
+          const err = await putRes.json().catch(() => ({}));
+          throw new Error(err.message || `HTTP ${putRes.status}`);
+        }
+
+        if (!isSilent) showToast('✅ 깃허브에 최신 문구가 안전하게 동기화되었습니다!');
+        return true;
+      } catch (err) {
+        console.error('깃허브 저장 실패:', err);
+        if (!isSilent) showToast('깃허브 저장 실패: ' + err.message, 'error');
+        return false;
+      }
+    }
+
+    async function syncFromGithub(isSilent = false) {
+      if (!githubConfig.token || !githubConfig.owner || !githubConfig.repo) return false;
+
+      if (!isSilent) showToast('☁️ 깃허브에서 데이터 불러오는 중...', 'success');
+
+      try {
+        const apiUrl = `https://api.github.com/repos/${encodeURIComponent(githubConfig.owner)}/${encodeURIComponent(githubConfig.repo)}/contents/${githubConfig.path}?ref=${githubConfig.branch}`;
+        const res = await fetch(apiUrl, {
+          headers: {
+            'Authorization': `Bearer ${githubConfig.token}`,
+            'Accept': 'application/vnd.github+json'
+          }
+        });
+
+        if (res.status === 404) {
+          // 파일이 아직 없으면 현재 로컬 데이터를 최초로 깃허브에 업로드
+          await syncToGithub(true);
+          if (!isSilent) showToast('깃허브에 최초 data.json을 생성했습니다.');
+          return true;
+        }
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        const jsonStr = base64ToUtf8(data.content);
+        const parsed = JSON.parse(jsonStr);
+
+        const incoming = parseArchivePayload(parsed);
+        quotes = incoming.quotes;
+        if (incoming.series.length > 0) seriesList = incoming.series;
+        if (!Array.isArray(parsed) && parsed.settings) {
+          macroSettings = incoming.settings;
+          applyMacroSettingsToUI();
+        }
+
+        await saveState(true);
+        render();
+
+        if (!isSilent) showToast(`✅ 깃허브에서 ${quotes.length}개 문구를 불러왔습니다!`);
+        return true;
+      } catch (err) {
+        console.error('깃허브 가져오기 실패:', err);
+        if (!isSilent) showToast('깃허브 불러오기 실패: ' + err.message, 'error');
+        return false;
+      }
+    }
+
+    function manualSyncFromGithub() {
+      syncFromGithub(false);
+    }
+
+    /* ========== REPLACER HELPERS ========== */
+    function calculateCharCount(text) {
+      if (!text) return { total: 0, noSpace: 0 };
+      return { total: text.length, noSpace: text.replace(/\s/g, '').length };
+    }
+
+    function normalizeStringList(value) {
+      if (!Array.isArray(value)) return [];
+      return [...new Set(value
+        .filter(item => typeof item === 'string')
+        .map(item => item.trim())
+        .filter(Boolean))];
+    }
+
+    function createUniqueRecordId(value, prefix, index, usedIds) {
+      let id = typeof value === 'string' ? value.trim() : '';
+      if (!id || usedIds.has(id)) {
+        const randomPart = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        id = `${prefix}-${randomPart}-${index}`;
+      }
+      usedIds.add(id);
+      return id;
+    }
+
+    function normalizeArchiveData(rawQuotes, rawSeries, rawSettings) {
+      if (!Array.isArray(rawQuotes)) {
+        throw new Error('문구 목록이 배열 형식이 아닙니다.');
+      }
+
+      const quoteIds = new Set();
+      const normalizedQuotes = rawQuotes.map((rawQuote, index) => {
+        const quote = rawQuote && typeof rawQuote === 'object' ? rawQuote : {};
+        const content = typeof quote.content === 'string' ? quote.content : String(quote.content ?? '');
+        const counts = calculateCharCount(content);
+        const parsedDocNumber = Number(quote.docNumber);
+        const parsedCreatedAt = Number(quote.createdAt);
+        const parsedUpdatedAt = Number(quote.updatedAt);
+
+        return {
+          ...quote,
+          id: createUniqueRecordId(quote.id, 'doc-import', index, quoteIds),
+          docNumber: Number.isFinite(parsedDocNumber) && parsedDocNumber > 0 ? parsedDocNumber : index + 1,
+          title: typeof quote.title === 'string' ? quote.title : '',
+          content,
+          contentEn: typeof quote.contentEn === 'string' ? quote.contentEn : '',
+          originalContent: typeof quote.originalContent === 'string' ? quote.originalContent : content,
+          source: typeof quote.source === 'string' ? quote.source : '',
+          series: normalizeQuoteSeries(quote.series),
+          tags: normalizeStringList(quote.tags),
+          memo: typeof quote.memo === 'string' ? quote.memo : '',
+          relatedQuoteIds: normalizeStringList(quote.relatedQuoteIds),
+          isFavorite: Boolean(quote.isFavorite),
+          isSpicy: Boolean(quote.isSpicy || quote.isRestricted),
+          charCount: counts.total,
+          charCountNoSpace: counts.noSpace,
+          createdAt: Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : Date.now(),
+          updatedAt: Number.isFinite(parsedUpdatedAt)
+            ? parsedUpdatedAt
+            : (Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : Date.now())
+        };
+      });
+
+      // 양방향 연관 문구 상호 동기화 보정
+      normalizedQuotes.forEach(q => {
+        (q.relatedQuoteIds || []).forEach(targetId => {
+          const target = normalizedQuotes.find(item => item.id === targetId);
+          if (target) {
+            if (!Array.isArray(target.relatedQuoteIds)) target.relatedQuoteIds = [];
+            if (!target.relatedQuoteIds.includes(q.id)) {
+              target.relatedQuoteIds.push(q.id);
+            }
+          }
+        });
+      });
+
+      const seriesIds = new Set();
+      const seriesNames = new Set();
+      const normalizedSeries = (Array.isArray(rawSeries) ? rawSeries : [])
+        .map((rawItem, index) => {
+          const item = rawItem && typeof rawItem === 'object' ? rawItem : {};
+          const name = typeof item.name === 'string' ? item.name.trim() : '';
+          if (!name || name === '기본' || name === '미등록' || seriesNames.has(name)) return null;
+          seriesNames.add(name);
+          return {
+            ...item,
+            id: createUniqueRecordId(item.id, 'series-import', index, seriesIds),
+            name
+          };
+        })
+        .filter(Boolean);
+
+      normalizedQuotes.forEach(quote => {
+        quote.series.forEach(name => {
+          if (name === '미등록' || seriesNames.has(name)) return;
+          seriesNames.add(name);
+          normalizedSeries.push({
+            id: createUniqueRecordId('', 'series-derived', normalizedSeries.length, seriesIds),
+            name
+          });
+        });
+      });
+
+      const settings = rawSettings && typeof rawSettings === 'object' ? rawSettings : {};
+      return {
+        quotes: normalizedQuotes,
+        series: normalizedSeries,
+        settings: {
+          charName: typeof settings.charName === 'string' ? settings.charName : '',
+          userName: typeof settings.userName === 'string' ? settings.userName : '',
+          previewReplaced: typeof settings.previewReplaced === 'boolean' ? settings.previewReplaced : false
+        }
+      };
+    }
+
+    function parseArchivePayload(parsed) {
+      if (Array.isArray(parsed)) {
+        return normalizeArchiveData(parsed, [], null);
+      }
+      if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.quotes)) {
+        throw new Error('백업 파일에 올바른 문구 목록이 없습니다.');
+      }
+      return normalizeArchiveData(parsed.quotes, parsed.series, parsed.settings);
+    }
+
+    /* 
+      매크로 치환: {{char}}, {{user}}만 엄격하게 치환
+      - 영문 원문 속 npc, pc 등은 절대 자동 치환되지 않도록 보호
+    */
+    function replaceMacros(text, charName, userName) {
+      if (!text) return '';
+      const c = (charName && charName.trim()) ? charName.trim() : '{{char}}';
+      const u = (userName && userName.trim()) ? userName.trim() : '{{user}}';
+      return text.replace(/\{\{\s*char\s*\}\}/gi, c).replace(/\{\{\s*user\s*\}\}/gi, u);
+    }
+
+    /* 문구 등록창 전용 수동 변환 함수 (검수용) */
+    function convertNpcPcToMacros(text) {
+      if (!text) return '';
+      let res = text.replace(/(?<![a-zA-Z0-9_])NPC(?![a-zA-Z0-9_])/g, '{{char}}');
+      res = res.replace(/(?<![a-zA-Z0-9_nN])PC(?![a-zA-Z0-9_])/g, '{{user}}');
+      return res;
+    }
+
+    function convertMacrosToNpcPc(text) {
+      if (!text) return '';
+      return text.replace(/\{\{\s*char\s*\}\}/gi, 'NPC')
+                 .replace(/\{\{\s*user\s*\}\}/gi, 'PC');
+    }
+
+    /* {{char}} (푸른색 볼드) & {{user}} (붉은색 볼드) 가시성 하이라이트 */
+    function formatMacroHighlights(rawText) {
+      if (!rawText) return '';
+      const escaped = escapeHtml(rawText);
+      const pattern = /(\{\{\s*(?:char|user)\s*\}\})/gi;
+      return escaped.split(pattern).map(part => {
+        if (!part) return '';
+        if (/^\{\{\s*char\s*\}\}$/i.test(part)) {
+          return `<strong class="font-bold text-[#1d4ed8]">${part}</strong>`;
+        }
+        if (/^\{\{\s*user\s*\}\}$/i.test(part)) {
+          return `<strong class="font-bold text-[#dc2626]">${part}</strong>`;
+        }
+        return part;
+      }).join('');
+    }
+
+    /* 치환 모드일 때: 치환된 캐릭터명/유저명 가시성 하이라이트 */
+    function formatReplacedHighlights(rawText, charName, userName) {
+      if (!rawText) return '';
+      const c = (charName && charName.trim()) ? charName.trim() : '';
+      const u = (userName && userName.trim()) ? userName.trim() : '';
+
+      let replaced = replaceMacros(rawText, c || '{{char}}', u || '{{user}}');
+      let escaped = escapeHtml(replaced);
+
+      const targets = [];
+      if (c && c !== '{{char}}') {
+        targets.push({ str: escapeHtml(c), type: 'char' });
+      }
+      if (u && u !== '{{user}}') {
+        targets.push({ str: escapeHtml(u), type: 'user' });
+      }
+
+      if (targets.length === 0) return escaped;
+
+      targets.sort((a, b) => b.str.length - a.str.length);
+
+      const regexParts = targets.map(t => t.str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      const pattern = new RegExp(`(${regexParts.join('|')})`, 'g');
+
+      return escaped.split(pattern).map(part => {
+        if (!part) return '';
+        const match = targets.find(t => t.str === part);
+        if (match) {
+          if (match.type === 'char') {
+            return `<strong class="font-bold text-[#1d4ed8]">${part}</strong>`;
+          } else {
+            return `<strong class="font-bold text-[#dc2626]">${part}</strong>`;
+          }
+        }
+        return part;
+      }).join('');
+    }
+
+    async function copyText(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.left = '-999999px';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          const ok = document.execCommand('copy');
+          ta.remove();
+          return ok;
+        }
+      } catch (e) {
+        return false;
+      }
+    }
+
+    /* ========== TOAST ========== */
+    function showToast(text, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const bg = type === 'success' ? 'bg-[#101f42] border-l-4 border-l-[#1d4ed8]' : 'bg-[#0a1128] border-l-4 border-l-[#dc2626]';
+      const icon = type === 'success' ? 'check-circle-2' : 'alert-circle';
+      const iconColor = type === 'success' ? 'text-blue-400' : 'text-red-500';
+
+      toast.className = `pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded shadow-xl border border-slate-700 text-sm font-medium text-white transition-all transform duration-200 ${bg}`;
+      toast.innerHTML = `
+        <div class="flex items-center gap-2.5">
+          <i data-lucide="${icon}" class="w-5 h-5 ${iconColor} shrink-0"></i>
+          <span>${escapeHtml(text)}</span>
+        </div>
+        <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      `;
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 200);
+      }, 2500);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function escapeInlineJsString(value) {
+      return String(value ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, '\\x27')
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029')
+        .replace(/</g, '\\x3C')
+        .replace(/>/g, '\\x3E')
+        .replace(/&/g, '\\x26');
+    }
+
+    /* ========== RENDER MAIN FEED ========== */
+    function render() {
+      quoteById = new Map(quotes.map(quote => [quote.id, quote]));
+      const filteredQuotes = getFilteredQuotes();
+
+      document.getElementById('headerTotalCount').textContent = quotes.length;
+      document.getElementById('badgeTotalCount').textContent = quotes.length;
+      document.getElementById('badgeFavCount').textContent = quotes.filter(q => q.isFavorite).length;
+      const spicyBadgeEl = document.getElementById('badgeSpicyCount');
+      if (spicyBadgeEl) {
+        spicyBadgeEl.textContent = quotes.filter(q => q.isSpicy || q.isRestricted).length;
+      }
+      updateSidebarFilterButtons();
+
+      renderSidebarSeries();
+      renderSidebarTags();
+      renderQuotesFeed(filteredQuotes);
+      renderActiveFilterBadges(filteredQuotes);
+
+      lucide.createIcons();
+    }
+
+    function getQuoteById(id) {
+      return quoteById.get(id) || quotes.find(item => item.id === id);
+    }
+
+    function normalizeQuoteSeries(qSeries) {
+      if (!qSeries) return ['미등록'];
+      const list = [...new Set((Array.isArray(qSeries) ? qSeries : [qSeries])
+        .map(s => typeof s === 'string' ? s.trim() : '')
+        .map(s => (s === '기본' ? '미등록' : s))
+        .filter(Boolean))];
+      if (list.length === 0) return ['미등록'];
+      // 다른 시리즈가 하나라도 있으면 '미등록' 자동 해제
+      if (list.length > 1 && list.includes('미등록')) {
+        return list.filter(s => s !== '미등록');
+      }
+      return list;
+    }
+
+    function renderSidebarSeries() {
+      const container = document.getElementById('seriesListContainer');
+      const counts = {};
+      quotes.forEach(q => {
+        const sList = normalizeQuoteSeries(q.series);
+        sList.forEach(s => {
+          if (s) counts[s] = (counts[s] || 0) + 1;
+        });
+      });
+
+      let itemsHtml = seriesList.map(s => {
+        const isSelected = currentFilter.series === s.name;
+        const count = counts[s.name] || 0;
+        return `
+          <div
+              onclick="selectSeriesFilter('${escapeInlineJsString(s.name)}')"
+            class="group flex items-center justify-between px-3 py-1.5 rounded text-xs transition-colors cursor-pointer ${
+              isSelected ? 'bg-blue-50 text-paint-blue font-bold border border-blue-200' : 'text-slate-700 hover:bg-slate-100'
+            }"
+          >
+            <div class="flex items-center gap-2 truncate">
+              <i data-lucide="folder" class="w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-paint-blue' : 'text-slate-400'}"></i>
+              <span class="truncate">${escapeHtml(s.name)}</span>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="px-1.5 py-0.2 rounded text-[10px] font-mono ${isSelected ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-500'}">
+                ${count}
+              </span>
+              <button
+                onclick="event.stopPropagation(); deleteSeries('${escapeInlineJsString(s.id)}', '${escapeInlineJsString(s.name)}')"
+                title="시리즈 삭제"
+                class="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition-all"
+              >
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // 미등록 문구가 있거나 현재 필터가 '미등록'인 경우
+      const unassignedCount = counts['미등록'] || 0;
+      if (unassignedCount > 0 || currentFilter.series === '미등록') {
+        const isSelected = currentFilter.series === '미등록';
+        itemsHtml += `
+          <div
+            onclick="selectSeriesFilter('미등록')"
+            class="group flex items-center justify-between px-3 py-1.5 rounded text-xs transition-colors cursor-pointer mt-1 border-t border-slate-100 pt-2 ${
+              isSelected ? 'bg-slate-200 text-slate-900 font-bold border border-slate-300' : 'text-slate-500 hover:bg-slate-100'
+            }"
+          >
+            <div class="flex items-center gap-2 truncate">
+              <i data-lucide="folder-minus" class="w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-slate-700' : 'text-slate-400'}"></i>
+              <span class="truncate">미등록</span>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="px-1.5 py-0.2 rounded text-[10px] font-mono ${isSelected ? 'bg-slate-300 text-slate-900' : 'bg-slate-100 text-slate-400'}">
+                ${unassignedCount}
+              </span>
+            </div>
+          </div>
+        `;
+      }
+
+      if (!itemsHtml) {
+        container.innerHTML = `<div class="py-3 text-center text-xs text-slate-400">등록된 시리즈가 없습니다.</div>`;
+        return;
+      }
+      container.innerHTML = itemsHtml;
+    }
+
+    function renderSidebarTags() {
+      const container = document.getElementById('tagCloudContainer');
+      const tagCounts = {};
+      quotes.forEach(q => {
+        if (Array.isArray(q.tags)) {
+          q.tags.forEach(t => {
+            if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
+          });
+        }
+      });
+
+      const tags = Object.entries(tagCounts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+      const clearBtn = document.getElementById('btnClearTags');
+
+      if (currentFilter.tags.length > 0) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+
+      if (tags.length === 0) {
+        container.innerHTML = `<div class="py-3 text-center text-xs text-slate-400">등록된 태그가 없습니다.</div>`;
+        return;
+      }
+
+      container.innerHTML = tags.map(({ name, count }) => {
+        const isSelected = currentFilter.tags.includes(name);
+        return `
+          <button
+          onclick="toggleTagFilter('${escapeInlineJsString(name)}')"
+            class="text-xs px-2.5 py-1 rounded-full border transition-all flex items-center gap-1.5 ${
+              isSelected
+                ? 'bg-paint-blue text-white border-paint-blue font-semibold shadow-sm'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-100'
+            }"
+          >
+            <span>#${escapeHtml(name)}</span>
+            <span class="text-[10px] font-mono rounded-full px-1 ${isSelected ? 'bg-blue-800 text-white' : 'bg-slate-200 text-slate-600'}">
+              ${count}
+            </span>
+            ${isSelected ? '<i data-lucide="check" class="w-3 h-3 ml-0.5"></i>' : ''}
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderActiveFilterBadges(filtered = getFilteredQuotes()) {
+      const container = document.getElementById('activeFilterBadges');
+      const resetBtn = document.getElementById('btnResetAllFilters');
+      let html = `
+        <span class="font-bold text-slate-800 font-mono">
+          검색 결과: <span id="filteredCount" class="text-paint-blue">${filtered.length}</span>건
+        </span>
+      `;
+
+      let hasFilter = false;
+
+      if (currentFilter.series) {
+        hasFilter = true;
+        html += `
+          <span class="bg-blue-100 text-paint-blue font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+            시리즈: ${escapeHtml(currentFilter.series)}
+            <button onclick="selectSeriesFilter(null)" class="hover:text-red-600">×</button>
+          </span>
+        `;
+      }
+
+      if (currentFilter.onlyFavorites) {
+        hasFilter = true;
+        html += `
+          <span class="bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+            ★ 즐겨찾기만
+            <button onclick="toggleFavoriteFilter()" class="hover:text-amber-900 font-bold">×</button>
+          </span>
+        `;
+      }
+
+      if (currentFilter.onlySpicy) {
+        hasFilter = true;
+        html += `
+          <span class="bg-rose-100 text-rose-800 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+            ❤️ 빨간맛만
+            <button onclick="toggleSpicyFilter()" class="hover:text-rose-900 font-bold">×</button>
+          </span>
+        `;
+      }
+
+      currentFilter.tags.forEach(t => {
+        hasFilter = true;
+        html += `
+          <span class="bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+            #${escapeHtml(t)}
+          <button onclick="toggleTagFilter('${escapeInlineJsString(t)}')" class="hover:text-paint-red">×</button>
+          </span>
+        `;
+      });
+
+      if (currentFilter.search) {
+        hasFilter = true;
+        html += `
+          <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded flex items-center gap-1">
+            "${escapeHtml(currentFilter.search)}"
+            <button onclick="clearSearch()" class="hover:text-paint-red">×</button>
+          </span>
+        `;
+      }
+
+      container.innerHTML = html;
+      if (hasFilter) {
+        resetBtn.classList.remove('hidden');
+      } else {
+        resetBtn.classList.add('hidden');
+      }
+    }
+
+    function getFilteredQuotes() {
+      const query = currentFilter.search.toLowerCase().trim();
+      return quotes.filter(q => {
+        if (currentFilter.onlyFavorites && !q.isFavorite) return false;
+        if (currentFilter.onlySpicy && !(q.isSpicy || q.isRestricted)) return false;
+        if (currentFilter.series) {
+          const sList = normalizeQuoteSeries(q.series);
+          if (!sList.includes(currentFilter.series)) return false;
+        }
+        if (currentFilter.tags.length > 0) {
+          const hasAll = currentFilter.tags.every(t => (q.tags || []).includes(t));
+          if (!hasAll) return false;
+        }
+        if (query) {
+          const inTitle = (q.title || '').toLowerCase().includes(query);
+          const inContent = (q.content || '').toLowerCase().includes(query) || (q.contentEn && q.contentEn.toLowerCase().includes(query));
+          const inSource = (q.source || '').toLowerCase().includes(query);
+          const inMemo = (q.memo || '').toLowerCase().includes(query);
+          const sList = normalizeQuoteSeries(q.series);
+          const inSeries = sList.some(s => s.toLowerCase().includes(query));
+          const inTags = (q.tags || []).some(t => t.toLowerCase().includes(query));
+          const inDoc = String(q.docNumber).includes(query);
+          if (!inTitle && !inContent && !inSource && !inMemo && !inSeries && !inTags && !inDoc) return false;
+        }
+        return true;
+      }).sort((a, b) => {
+        switch (currentFilter.sortBy) {
+          case 'alphabetical': {
+            const strA = (a.title || a.content || '').trim();
+            const strB = (b.title || b.content || '').trim();
+            return strA.localeCompare(strB, 'ko', { sensitivity: 'base', numeric: true });
+          }
+          case 'docNumber': return a.docNumber - b.docNumber;
+          case 'newest': return b.createdAt - a.createdAt;
+          case 'oldest': return a.createdAt - b.createdAt;
+          case 'chars-desc': return b.charCount - a.charCount;
+          case 'chars-asc': return a.charCount - b.charCount;
+          default: {
+            const strA = (a.title || a.content || '').trim();
+            const strB = (b.title || b.content || '').trim();
+            return strA.localeCompare(strB, 'ko', { sensitivity: 'base', numeric: true });
+          }
+        }
+      });
+    }
+
+    function renderQuotesFeed(filtered = getFilteredQuotes()) {
+      const container = document.getElementById('quotesContainer');
+      const countEl = document.getElementById('filteredCount');
+      if (countEl) countEl.textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white border border-paint-border rounded-lg p-12 text-center flex flex-col items-center justify-center gap-3 shadow-sm">
+            <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+              <i data-lucide="inbox" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-sm font-bold text-slate-700">조건에 맞는 보관 문구가 없습니다.</h3>
+            <p class="text-xs text-slate-500 max-w-sm">검색어나 필터 조건을 변경하시거나, 새로운 문구를 등록해 보세요.</p>
+            <button onclick="openQuoteModal()" class="mt-2 px-4 py-2 rounded bg-paint-blue hover:bg-paint-blue-hover text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              <span>첫 문구 등록하기</span>
+            </button>
+          </div>
+        `;
+        document.getElementById('loadMoreSection').classList.add('hidden');
+        return;
+      }
+
+      // 대용량 지연 렌더링 (현재 표시 분량만 슬라이스)
+      const visibleQuotes = filtered.slice(0, displayedCount);
+
+      if (currentFilter.viewMode === 'compact') {
+        container.className = 'flex flex-col gap-2';
+        container.innerHTML = visibleQuotes.map(q => renderCompactQuote(q)).join('');
+      } else {
+        container.className = 'flex flex-col gap-4';
+        container.innerHTML = visibleQuotes.map(q => renderCardQuote(q)).join('');
+      }
+
+      // 더 보기 버튼 제어
+      const loadMoreSec = document.getElementById('loadMoreSection');
+      if (filtered.length > displayedCount) {
+        loadMoreSec.classList.remove('hidden');
+        const remaining = filtered.length - displayedCount;
+        document.getElementById('txtLoadMore').textContent = `더 보기 (+${Math.min(PAGE_CHUNK, remaining)}건 / 남은 ${remaining}건)`;
+      } else {
+        loadMoreSec.classList.add('hidden');
+      }
+    }
+
+    function loadMoreQuotes() {
+      displayedCount += PAGE_CHUNK;
+      renderQuotesFeed();
+      lucide.createIcons();
+    }
+
+    function toggleCardQuoteLang(id) {
+      const cur = cardLangState.get(id) || 'ko';
+      cardLangState.set(id, cur === 'ko' ? 'en' : 'ko');
+      render();
+    }
+
+    function renderCompactQuote(q) {
+      const charVal = (document.getElementById('inputCharName') ? document.getElementById('inputCharName').value.trim() : macroSettings.charName) || '{{char}}';
+      const userVal = (document.getElementById('inputUserName') ? document.getElementById('inputUserName').value.trim() : macroSettings.userName) || '{{user}}';
+      const displayContent = macroSettings.previewReplaced
+        ? replaceMacros(q.content, charVal, userVal)
+        : q.content;
+      const previewSingleLine = escapeHtml(displayContent.replace(/\n/g, ' '));
+
+      return `
+        <div id="quote-${escapeHtml(q.id)}" class="bg-white border border-paint-border hover:border-paint-blue rounded p-3 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
+          <div class="flex items-center gap-3 flex-1 min-w-0">
+            <button onclick="toggleFavorite('${escapeInlineJsString(q.id)}')" class="p-1 hover:scale-110 transition-transform shrink-0">
+              <i data-lucide="star" class="w-4 h-4 ${q.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}"></i>
+            </button>
+            ${(q.isSpicy || q.isRestricted) ? `
+              <span class="p-1 shrink-0 flex items-center" title="빨간맛">
+                <i data-lucide="heart" class="w-4 h-4 fill-rose-500 text-rose-500"></i>
+              </span>
+            ` : ''}
+            ${q.title ? `
+              <span class="font-bold text-xs bg-slate-800 text-white px-2 py-0.5 rounded shrink-0 max-w-[150px] truncate" title="${escapeHtml(q.title)}">${escapeHtml(q.title)}</span>
+            ` : `
+              <span class="font-mono text-xs font-bold text-slate-500 shrink-0">#${String(q.docNumber).padStart(3, '0')}</span>
+            `}
+            <div class="flex items-center gap-1 shrink-0 flex-wrap">
+              ${normalizeQuoteSeries(q.series).map(s => {
+                const isUnassigned = s === '미등록';
+                return `
+                  <span onclick="selectSeriesFilter('${escapeInlineJsString(s)}')" class="text-[11px] font-semibold ${
+                    isUnassigned
+                      ? 'bg-slate-100 text-slate-500 border border-slate-200'
+                      : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-paint-blue'
+                  } px-2 py-0.5 rounded cursor-pointer shrink-0">
+                    ${escapeHtml(s)}
+                  </span>
+                `;
+              }).join('')}
+            </div>
+            <p onclick="openQuoteDetailModal('${escapeInlineJsString(q.id)}')" class="text-xs text-slate-800 truncate font-medium flex-1 cursor-pointer hover:text-paint-blue transition-colors">
+              ${previewSingleLine}
+            </p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0 self-end md:self-center">
+            <span class="font-mono text-[11px] text-slate-400">${q.charCount}자</span>
+            ${q.contentEn ? `
+              <span class="font-mono text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded font-bold shrink-0" title="한글-영어 듀얼 지원">
+                EN
+              </span>
+            ` : ''}
+            ${(q.relatedQuoteIds && q.relatedQuoteIds.length > 0) ? `
+              <span class="font-mono text-[11px] bg-blue-50 text-paint-blue border border-blue-200 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shrink-0" title="연관 문구 ${q.relatedQuoteIds.length}개">
+                <i data-lucide="link-2" class="w-3 h-3 text-paint-blue"></i>
+                <span>${q.relatedQuoteIds.length}</span>
+              </span>
+            ` : ''}
+            <button onclick="copyQuote('${escapeInlineJsString(q.id)}', true)" class="p-1.5 rounded bg-blue-50 text-paint-blue hover:bg-paint-blue hover:text-white transition-colors text-xs font-semibold flex items-center gap-1 border border-blue-200">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              <span>복사</span>
+            </button>
+            <button onclick="openEditQuoteModal('${escapeInlineJsString(q.id)}')" class="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+            </button>
+            <button onclick="deleteQuote('${escapeInlineJsString(q.id)}')" class="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-paint-red">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderCardQuote(q) {
+      const isReplaced = macroSettings.previewReplaced;
+      const charVal = (document.getElementById('inputCharName') ? document.getElementById('inputCharName').value.trim() : macroSettings.charName) || '{{char}}';
+      const userVal = (document.getElementById('inputUserName') ? document.getElementById('inputUserName').value.trim() : macroSettings.userName) || '{{user}}';
+
+      const isEnCard = (cardLangState.get(q.id) === 'en') && Boolean(q.contentEn);
+      const activeContent = isEnCard ? q.contentEn : q.content;
+      let bodyHtml = '';
+      if (isReplaced) {
+        bodyHtml = formatReplacedHighlights(activeContent, charVal, userVal);
+      } else {
+        bodyHtml = formatMacroHighlights(activeContent);
+      }
+      const currentCardCharCount = calculateCharCount(activeContent).total;
+
+      // 태그 칩
+      const tagsHtml = (q.tags && q.tags.length > 0) ? `
+        <div class="flex flex-wrap gap-1.5 items-center">
+          <i data-lucide="tag" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+          ${q.tags.map(t => `
+            <button onclick="toggleTagFilter('${escapeInlineJsString(t)}')" class="text-xs font-medium bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-paint-blue border border-slate-200 px-2 py-0.5 rounded-full transition-colors">
+              #${escapeHtml(t)}
+            </button>
+          `).join('')}
+        </div>
+      ` : '';
+
+      // 연관 문구 칩
+      let relatedHtml = '';
+      if (q.relatedQuoteIds && q.relatedQuoteIds.length > 0) {
+        const chips = q.relatedQuoteIds.map(rid => {
+          const target = getQuoteById(rid);
+          if (!target) return '';
+          return `
+            <button onclick="scrollToQuote('${escapeInlineJsString(target.id)}')" class="bg-white hover:bg-paint-blue hover:text-white text-slate-700 border border-slate-300 rounded px-2 py-0.5 font-mono text-[11px] transition-colors flex items-center gap-1 shadow-2xs">
+              <span>#DOC-${String(target.docNumber).padStart(4, '0')}</span>
+              <span class="text-slate-400 hover:text-white max-w-[90px] truncate">(${escapeHtml(Array.isArray(target.series) ? target.series[0] : target.series)})</span>
+            </button>
+          `;
+        }).filter(Boolean).join('');
+
+        if (chips) {
+          relatedHtml = `
+            <div class="flex flex-wrap gap-2 items-center text-xs bg-slate-100/70 border border-slate-200 rounded px-2.5 py-1.5">
+              <span class="flex items-center gap-1 text-slate-600 font-semibold shrink-0">
+                <i data-lucide="link-2" class="w-3.5 h-3.5 text-paint-blue"></i>
+                <span>연관 문구:</span>
+              </span>
+              ${chips}
+            </div>
+          `;
+        }
+      }
+
+      // 메모 섹션
+      const memoHtml = q.memo ? `
+        <div class="border border-blue-200 bg-blue-50/40 rounded overflow-hidden">
+          <button onclick="toggleMemoView('${escapeInlineJsString(`memo-${q.id}`)}')" class="w-full px-3 py-1.5 text-xs font-semibold text-paint-blue flex items-center justify-between hover:bg-blue-50 transition-colors">
+            <div class="flex items-center gap-1.5">
+              <i data-lucide="message-square" class="w-3.5 h-3.5 text-paint-blue"></i>
+              <span>메모 / 해설</span>
+            </div>
+            <i id="memo-icon-${escapeHtml(q.id)}" data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+          </button>
+          <div id="memo-${escapeHtml(q.id)}" class="hidden px-3 pb-2.5 pt-1 text-xs text-slate-700 border-t border-blue-100 whitespace-pre-wrap">
+            ${escapeHtml(q.memo)}
+          </div>
+        </div>
+      ` : '';
+
+      return `
+        <article id="quote-${escapeHtml(q.id)}" class="bg-white rounded-lg border border-paint-border hover:border-slate-400 transition-all shadow-sm overflow-hidden flex flex-col justify-between">
+          <!-- 카드 상단 바 -->
+          <div class="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 flex-wrap">
+              ${q.title ? `
+                <span class="font-bold text-xs sm:text-sm bg-slate-800 text-white px-2.5 py-0.5 rounded tracking-wide shadow-2xs truncate max-w-[200px] sm:max-w-xs flex items-center gap-1.5" title="${escapeHtml(q.title)}">
+                  <i data-lucide="bookmark" class="w-3 h-3 text-blue-300 shrink-0"></i>
+                  <span class="truncate">${escapeHtml(q.title)}</span>
+                </span>
+              ` : `
+                <span class="font-mono font-bold text-xs bg-slate-200 text-slate-800 px-2 py-0.5 rounded tracking-wider border border-slate-300">
+                  #DOC-${String(q.docNumber).padStart(4, '0')}
+                </span>
+              `}
+              ${normalizeQuoteSeries(q.series).map(s => {
+                const isUnassigned = s === '미등록';
+                return `
+                  <button onclick="selectSeriesFilter('${escapeInlineJsString(s)}')" class="flex items-center gap-1 text-xs font-semibold ${
+                    isUnassigned
+                      ? 'bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-300'
+                      : 'bg-blue-50 text-paint-blue hover:bg-blue-100 border border-blue-200'
+                  } px-2.5 py-0.5 rounded transition-colors">
+                    <i data-lucide="${isUnassigned ? 'folder-minus' : 'layers'}" class="w-3 h-3"></i>
+                    <span>${escapeHtml(s)}</span>
+                  </button>
+                `;
+              }).join('')}
+              ${q.source ? `<span class="text-xs text-slate-500 italic max-w-xs truncate">• ${escapeHtml(q.source)}</span>` : ''}
+            </div>
+
+            <div class="flex items-center gap-2">
+              <div class="font-mono text-[11px] bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-0.5 rounded flex items-center gap-1 select-none font-semibold">
+                <span>${currentCardCharCount}자</span>
+              </div>
+              ${q.contentEn ? `
+                <button
+                  type="button"
+                  onclick="event.stopPropagation(); toggleCardQuoteLang('${escapeInlineJsString(q.id)}')"
+                  class="font-mono text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold shadow-2xs transition-colors cursor-pointer"
+                  title="한글 ↔ 영어 본문 전환"
+                >
+                  <span class="text-[10px]">🇰🇷↔🇺🇸</span>
+                  <span>${isEnCard ? 'EN' : 'KR'}</span>
+                </button>
+              ` : ''}
+              ${(q.relatedQuoteIds && q.relatedQuoteIds.length > 0) ? `
+                <div class="font-mono text-[11px] bg-blue-50 text-paint-blue border border-blue-200 px-2 py-0.5 rounded flex items-center gap-1 select-none font-bold shadow-2xs" title="연관 문구 ${q.relatedQuoteIds.length}개">
+                  <i data-lucide="link-2" class="w-3.5 h-3.5 text-paint-blue"></i>
+                  <span>${q.relatedQuoteIds.length}</span>
+                </div>
+              ` : ''}
+              ${(q.isSpicy || q.isRestricted) ? `
+                <span class="p-1 shrink-0 flex items-center" title="빨간맛">
+                  <i data-lucide="heart" class="w-4 h-4 fill-rose-500 text-rose-500"></i>
+                </span>
+              ` : ''}
+              <button onclick="toggleFavorite('${escapeInlineJsString(q.id)}')" title="즐겨찾기" class="p-1 hover:scale-110 transition-transform rounded">
+                <i data-lucide="star" class="w-4 h-4 ${q.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-slate-300 hover:text-amber-400'}"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- 본문 영역 (클릭 시 전문 읽기 팝업) -->
+          <div class="p-4 sm:p-5 flex-1 flex flex-col gap-3">
+            <div onclick="openQuoteDetailModal('${escapeInlineJsString(q.id)}')" title="클릭하여 전문 읽기" class="group/body relative bg-slate-50/60 hover:bg-blue-50/30 border border-slate-200 hover:border-paint-blue/50 rounded-lg p-3.5 sm:p-4 text-sm sm:text-base text-slate-900 leading-relaxed font-sans cursor-pointer transition-all shadow-2xs">
+              <div class="line-clamp-6 whitespace-pre-wrap">${bodyHtml}</div>
+            </div>
+            ${tagsHtml}
+            ${memoHtml}
+          </div>
+
+          <!-- 하단 액션 툴바 -->
+          <div class="bg-slate-50 border-t border-slate-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5">
+              <button onclick="copyQuote('${escapeInlineJsString(q.id)}', true)" class="px-2.5 py-1.5 rounded bg-paint-blue hover:bg-paint-blue-hover text-white text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                <span>치환</span>
+              </button>
+              <button onclick="copyQuote('${escapeInlineJsString(q.id)}', false)" class="px-2.5 py-1.5 rounded bg-paint-red hover:bg-paint-red-hover text-white text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                <span>원문</span>
+              </button>
+            </div>
+
+            <div class="flex items-center gap-1.5">
+              <button onclick="openEditQuoteModal('${escapeInlineJsString(q.id)}')" title="문구 수정" class="p-1.5 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-colors">
+                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+              </button>
+              <button onclick="deleteQuote('${escapeInlineJsString(q.id)}')" title="문구 삭제" class="p-1.5 rounded bg-white hover:bg-red-50 text-slate-400 hover:text-paint-red border border-slate-300 hover:border-red-300 transition-colors">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    /* ========== ACTIONS & HANDLERS ========== */
+    function toggleMemoView(elementId) {
+      const el = document.getElementById(elementId);
+      const icon = document.getElementById(elementId.replace('memo-', 'memo-icon-'));
+      if (el.classList.contains('hidden')) {
+        el.classList.remove('hidden');
+        if (icon) icon.setAttribute('data-lucide', 'chevron-up');
+      } else {
+        el.classList.add('hidden');
+        if (icon) icon.setAttribute('data-lucide', 'chevron-down');
+      }
+      lucide.createIcons();
+    }
+
+    function applyMacroSettingsToUI() {
+      const charInput = document.getElementById('inputCharName');
+      const userInput = document.getElementById('inputUserName');
+      if (charInput) charInput.value = macroSettings.charName || '';
+      if (userInput) userInput.value = macroSettings.userName || '';
+      updatePreviewToggleUI();
+    }
+
+    function handleMacroChange() {
+      macroSettings.charName = document.getElementById('inputCharName').value.trim();
+      macroSettings.userName = document.getElementById('inputUserName').value.trim();
+      clearTimeout(macroSaveTimer);
+      macroSaveTimer = setTimeout(async () => {
+        try {
+          await dbSaveSettings(macroSettings);
+          if (githubConfig.token && githubConfig.owner && githubConfig.repo && githubConfig.autoSync) {
+            scheduleGithubSync();
+          }
+        } catch (error) {
+          console.error('매크로 설정 저장 에러:', error);
+        }
+      }, 250);
+      if (macroSettings.previewReplaced) render();
+    }
+
+    function togglePreview() {
+      macroSettings.charName = document.getElementById('inputCharName').value.trim();
+      macroSettings.userName = document.getElementById('inputUserName').value.trim();
+      macroSettings.previewReplaced = !macroSettings.previewReplaced;
+      updatePreviewToggleUI();
+      dbSaveSettings(macroSettings).catch(error => console.error('매크로 설정 저장 에러:', error));
+      if (githubConfig.token && githubConfig.owner && githubConfig.repo && githubConfig.autoSync) {
+        scheduleGithubSync();
+      }
+      render();
+    }
+
+    function updatePreviewToggleUI() {
+      const btn = document.getElementById('btnTogglePreview');
+      if (macroSettings.previewReplaced) {
+        btn.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded font-medium text-xs transition-all border bg-blue-900/60 border-blue-500 text-blue-200';
+        btn.innerHTML = `<i data-lucide="toggle-right" class="w-4 h-4 text-blue-400"></i><span>치환 미리보기 ON</span>`;
+      } else {
+        btn.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded font-medium text-xs transition-all border bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200';
+        btn.innerHTML = `<i data-lucide="toggle-left" class="w-4 h-4 text-slate-500"></i><span>치환 미리보기 OFF</span>`;
+      }
+      lucide.createIcons();
+    }
+
+    // 10,000개 대용량 검색 대비 디바운스 처리
+    function handleSearchInput(val) {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        currentFilter.search = val;
+        displayedCount = PAGE_CHUNK;
+        const btn = document.getElementById('btnClearSearch');
+        if (val) btn.classList.remove('hidden');
+        else btn.classList.add('hidden');
+        render();
+      }, 100);
+    }
+
+    function clearSearch() {
+      document.getElementById('searchInput').value = '';
+      currentFilter.search = '';
+      displayedCount = PAGE_CHUNK;
+      document.getElementById('btnClearSearch').classList.add('hidden');
+      render();
+    }
+
+    function selectSeriesFilter(seriesName) {
+      displayedCount = PAGE_CHUNK;
+      if (currentFilter.series === seriesName) currentFilter.series = null;
+      else currentFilter.series = seriesName;
+      render();
+    }
+
+    function updateSidebarFilterButtons() {
+      const btnAll = document.getElementById('btnFilterAll');
+      const btnFav = document.getElementById('btnFilterFav');
+      const btnSpicy = document.getElementById('btnFilterSpicy');
+
+      const isAll = !currentFilter.onlyFavorites && !currentFilter.onlySpicy && !currentFilter.series;
+
+      if (btnAll) {
+        btnAll.className = isAll
+          ? 'w-full flex items-center justify-between px-3 py-2 rounded text-xs font-bold transition-colors bg-paint-blue text-white shadow-sm'
+          : 'w-full flex items-center justify-between px-3 py-2 rounded text-xs font-medium transition-colors text-slate-700 hover:bg-slate-100';
+      }
+
+      if (btnFav) {
+        btnFav.className = currentFilter.onlyFavorites
+          ? 'w-full flex items-center justify-between px-3 py-2 rounded text-xs font-bold transition-colors bg-amber-500 text-white shadow-sm'
+          : 'w-full flex items-center justify-between px-3 py-2 rounded text-xs font-medium transition-colors text-slate-700 hover:bg-amber-50 hover:text-amber-700';
+        const starIcon = btnFav.querySelector('i');
+        if (starIcon) {
+          starIcon.className = currentFilter.onlyFavorites ? 'w-4 h-4 text-white fill-white' : 'w-4 h-4 text-amber-400 fill-amber-400';
+        }
+      }
+
+      if (btnSpicy) {
+        btnSpicy.className = currentFilter.onlySpicy
+          ? 'w-full flex items-center justify-between px-3 py-2 rounded text-xs font-bold transition-colors bg-rose-600 text-white shadow-sm'
+          : 'w-full flex items-center justify-between px-3 py-2 rounded text-xs font-medium transition-colors text-slate-700 hover:bg-rose-50 hover:text-rose-700';
+        const heartIcon = btnSpicy.querySelector('i');
+        if (heartIcon) {
+          heartIcon.className = currentFilter.onlySpicy ? 'w-4 h-4 text-white fill-white' : 'w-4 h-4 text-rose-500 fill-rose-500';
+        }
+      }
+    }
+
+    function selectAllQuotes() {
+      displayedCount = PAGE_CHUNK;
+      currentFilter.series = null;
+      currentFilter.onlyFavorites = false;
+      currentFilter.onlySpicy = false;
+      render();
+    }
+
+    function toggleFavoriteFilter() {
+      displayedCount = PAGE_CHUNK;
+      currentFilter.onlyFavorites = !currentFilter.onlyFavorites;
+      render();
+    }
+
+    function toggleSpicyFilter() {
+      displayedCount = PAGE_CHUNK;
+      currentFilter.onlySpicy = !currentFilter.onlySpicy;
+      render();
+    }
+
+    function toggleTagFilter(tagName) {
+      displayedCount = PAGE_CHUNK;
+      if (currentFilter.tags.includes(tagName)) {
+        currentFilter.tags = currentFilter.tags.filter(t => t !== tagName);
+      } else {
+        currentFilter.tags.push(tagName);
+      }
+      render();
+    }
+
+    function clearTags() {
+      displayedCount = PAGE_CHUNK;
+      currentFilter.tags = [];
+      render();
+    }
+
+    function handleSortChange(val) {
+      currentFilter.sortBy = val;
+      displayedCount = PAGE_CHUNK;
+      render();
+    }
+
+    function setViewMode(mode) {
+      currentFilter.viewMode = mode;
+      const bCard = document.getElementById('btnViewCard');
+      const bComp = document.getElementById('btnViewCompact');
+      if (mode === 'card') {
+        bCard.className = 'p-1 rounded text-xs transition-colors bg-white text-paint-blue shadow-sm font-bold';
+        bComp.className = 'p-1 rounded text-xs transition-colors text-slate-500 hover:text-slate-800';
+      } else {
+        bCard.className = 'p-1 rounded text-xs transition-colors text-slate-500 hover:text-slate-800';
+        bComp.className = 'p-1 rounded text-xs transition-colors bg-white text-paint-blue shadow-sm font-bold';
+      }
+      render();
+    }
+
+    function resetAllFilters() {
+      displayedCount = PAGE_CHUNK;
+      currentFilter.search = '';
+      currentFilter.series = null;
+      currentFilter.tags = [];
+      currentFilter.onlyFavorites = false;
+      currentFilter.onlySpicy = false;
+      document.getElementById('searchInput').value = '';
+      document.getElementById('btnClearSearch').classList.add('hidden');
+      render();
+    }
+
+    async function toggleFavorite(id) {
+      const q = getQuoteById(id);
+      if (q) {
+        q.isFavorite = !q.isFavorite;
+        await saveState();
+        render();
+      }
+    }
+
+    async function copyQuote(id, isReplaced) {
+      const q = getQuoteById(id);
+      if (!q) return;
+      const isEn = (cardLangState.get(id) === 'en') && Boolean(q.contentEn);
+      const rawContent = isEn ? q.contentEn : q.content;
+      const charVal = (document.getElementById('inputCharName') ? document.getElementById('inputCharName').value.trim() : macroSettings.charName) || '{{char}}';
+      const userVal = (document.getElementById('inputUserName') ? document.getElementById('inputUserName').value.trim() : macroSettings.userName) || '{{user}}';
+      const text = isReplaced ? replaceMacros(rawContent, charVal, userVal) : rawContent;
+      const ok = await copyText(text);
+      if (ok) {
+        const langLabel = isEn ? '영어 ' : '';
+        showToast(isReplaced ? `${langLabel}치환된 문구를 복사했습니다!` : `${langLabel}원문 매크로를 복사했습니다!`, 'success');
+      } else {
+        showToast('복사에 실패했습니다.', 'error');
+      }
+    }
+
+    async function convertQuoteNpcPc(id) {
+      const q = getQuoteById(id);
+      if (!q) return;
+      const hasMacros = /\{\{\s*(?:char|user)\s*\}\}/i.test(q.content);
+      const hasNpcPc = /(?<![a-zA-Z0-9_])(?:NPC|PC)(?![a-zA-Z0-9_])/.test(q.content);
+
+      if (hasMacros) {
+        q.content = convertMacrosToNpcPc(q.content);
+        showToast('{{char}}/{{user}} → NPC/PC 로 변환했습니다.');
+      } else if (hasNpcPc) {
+        q.content = convertNpcPcToMacros(q.content);
+        showToast('NPC/PC → {{char}}/{{user}} 로 변환했습니다.');
+      } else {
+        showToast('본문에 변환할 {{char}}, {{user}} 또는 NPC, PC가 없습니다.', 'error');
+        return;
+      }
+      const c = calculateCharCount(q.content);
+      q.charCount = c.total;
+      q.charCountNoSpace = c.noSpace;
+      await saveState();
+      render();
+    }
+
+    async function deleteQuote(id) {
+      const q = getQuoteById(id);
+      if (!q) return;
+      if (confirm(`#DOC-${String(q.docNumber).padStart(4, '0')} 문구를 삭제하시겠습니까?`)) {
+        quotes = quotes.filter(item => item.id !== id);
+        quotes.forEach(item => {
+          if (Array.isArray(item.relatedQuoteIds)) {
+            item.relatedQuoteIds = item.relatedQuoteIds.filter(relatedId => relatedId !== id);
+          }
+        });
+        await saveState();
+        render();
+        showToast('문구가 삭제되었습니다.');
+      }
+    }
+
+    function scrollToQuote(targetId) {
+      resetAllFilters();
+      const targetIndex = getFilteredQuotes().findIndex(quote => quote.id === targetId);
+      if (targetIndex >= displayedCount) {
+        displayedCount = Math.ceil((targetIndex + 1) / PAGE_CHUNK) * PAGE_CHUNK;
+        render();
+      }
+      setTimeout(() => {
+        const el = document.getElementById(`quote-${targetId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('highlight-quote');
+          setTimeout(() => el.classList.remove('highlight-quote'), 2000);
+        }
+      }, 100);
+    }
+
+    /* ========== SERIES MANAGEMENT ========== */
+    function toggleAddSeriesForm() {
+      const form = document.getElementById('addSeriesForm');
+      form.classList.toggle('hidden');
+      if (!form.classList.contains('hidden')) {
+        document.getElementById('inputNewSeriesName').focus();
+      }
+    }
+
+    async function submitNewSeries() {
+      const input = document.getElementById('inputNewSeriesName');
+      const name = input.value.trim();
+      if (!name) return;
+      if (seriesList.some(s => s.name === name)) {
+        showToast('이미 존재하는 시리즈 이름입니다.', 'error');
+        return;
+      }
+      seriesList.push({ id: `series-${Date.now()}`, name });
+      input.value = '';
+      document.getElementById('addSeriesForm').classList.add('hidden');
+      await saveState();
+      render();
+      showToast(`'${name}' 시리즈가 생성되었습니다.`);
+    }
+
+    async function deleteSeries(id, name) {
+      if (confirm(`'${name}' 시리즈를 삭제하시겠습니까? (소속 문구는 '미등록'으로 변경됩니다)`)) {
+        seriesList = seriesList.filter(s => s.id !== id);
+        quotes.forEach(q => {
+          if (Array.isArray(q.series)) {
+            q.series = q.series.filter(s => s !== name);
+            if (q.series.length === 0) q.series = ['미등록'];
+          } else if (q.series === name) {
+            q.series = ['미등록'];
+          }
+        });
+        if (currentFilter.series === name) currentFilter.series = null;
+        await saveState();
+        render();
+        showToast(`'${name}' 시리즈가 삭제되었습니다.`);
+      }
+    }
+
+    /* ========== QUOTE MODAL (CRUD) ========== */
+    let editorSeries = ['미등록'];
+
+    function renderModalSeriesChips() {
+      // 0개면 자동으로 ['미등록'] 지정
+      if (!editorSeries || editorSeries.length === 0) {
+        editorSeries = ['미등록'];
+      }
+      // 다른 시리즈가 하나라도 있으면 '미등록' 자동 해제
+      if (editorSeries.length > 1 && editorSeries.includes('미등록')) {
+        editorSeries = editorSeries.filter(s => s !== '미등록');
+      }
+
+      const container = document.getElementById('modalSelectedSeriesChips');
+      const countEl = document.getElementById('modalSelectedSeriesCount');
+      const isOnlyUnassigned = editorSeries.length === 1 && editorSeries[0] === '미등록';
+
+      if (countEl) {
+        countEl.textContent = isOnlyUnassigned ? '미등록 (기본)' : `${editorSeries.length}개 선택됨`;
+      }
+
+      if (container) {
+        container.innerHTML = editorSeries.map(s => {
+          const isUnassigned = s === '미등록';
+          return `
+            <span class="inline-flex items-center gap-1.5 ${
+              isUnassigned
+                ? 'bg-slate-100 text-slate-600 border border-slate-300'
+                : 'bg-blue-50 text-paint-blue border border-blue-200'
+            } text-xs font-semibold px-2.5 py-0.5 rounded shadow-2xs">
+              <i data-lucide="${isUnassigned ? 'folder-minus' : 'folder'}" class="w-3 h-3 ${isUnassigned ? 'text-slate-400' : 'text-paint-blue'}"></i>
+              <span>${escapeHtml(s)}</span>
+              ${!isUnassigned ? `
+                <button type="button" onclick="removeModalSeries('${escapeInlineJsString(s)}')" title="선택 해제" class="text-slate-400 hover:text-paint-red p-0.5 ml-0.5 font-bold">×</button>
+              ` : ''}
+            </span>
+          `;
+        }).join('');
+      }
+
+      // 스크롤 드롭다운 갱신
+      const select = document.getElementById('modalSeriesPickerSelect');
+      if (select) {
+        let opts = `<option value="">▼ 시리즈 목록에서 선택...</option>`;
+        seriesList.forEach(s => {
+          const isSelected = editorSeries.includes(s.name);
+          opts += `<option value="${escapeHtml(s.name)}" ${isSelected ? 'disabled class="text-slate-300"' : ''}>
+            ${isSelected ? '✓ ' : '  '}${escapeHtml(s.name)}${isSelected ? ' (선택됨)' : ''}
+          </option>`;
+        });
+        select.innerHTML = opts;
+        select.value = '';
+      }
+      lucide.createIcons();
+    }
+
+    function handlePickSeries(val) {
+      if (!val) return;
+      // 다른 시리즈 하나라도 등록시 자동으로 [미등록] 해제
+      editorSeries = editorSeries.filter(s => s !== '미등록' && s !== '기본');
+      if (!editorSeries.includes(val)) {
+        editorSeries.push(val);
+      }
+      renderModalSeriesChips();
+    }
+
+    function removeModalSeries(val) {
+      editorSeries = editorSeries.filter(s => s !== val);
+      // 모든 시리즈가 해제되면 자동으로 [미등록] 복귀
+      if (editorSeries.length === 0) {
+        editorSeries = ['미등록'];
+      }
+      renderModalSeriesChips();
+    }
+
+    function addModalSeriesFromInput() {
+      const input = document.getElementById('modalSeriesCustomInput');
+      const name = input.value.trim();
+      if (!name) return;
+      if (!seriesList.some(s => s.name === name)) {
+        seriesList.push({ id: `series-${Date.now()}`, name });
+        saveState(true);
+        renderSidebarSeries();
+      }
+      // 다른 시리즈 추가시 자동으로 [미등록] 해제
+      editorSeries = editorSeries.filter(s => s !== '미등록' && s !== '기본');
+      if (!editorSeries.includes(name)) {
+        editorSeries.push(name);
+      }
+      input.value = '';
+      renderModalSeriesChips();
+    }
+
+    function toggleEnEditorInput(forceOpen) {
+      const container = document.getElementById('enEditorContainer');
+      const text = document.getElementById('btnToggleEnEditorText');
+      if (!container) return;
+      const isOpen = forceOpen !== undefined ? !forceOpen : !container.classList.contains('hidden');
+      if (isOpen) {
+        container.classList.add('hidden');
+        if (text) text.textContent = '영어 버전 입력창 열기';
+      } else {
+        container.classList.remove('hidden');
+        if (text) text.textContent = '영어 버전 입력창 접기';
+        updateEditorEnCharCount();
+      }
+    }
+
+    function updateEditorEnCharCount() {
+      const el = document.getElementById('quoteContentEn');
+      const countEl = document.getElementById('editorEnTotalCount');
+      if (el && countEl) {
+        countEl.textContent = calculateCharCount(el.value).total;
+      }
+    }
+
+    function openQuoteModal() {
+      editorOriginalBackup = '';
+      document.getElementById('editQuoteId').value = '';
+      document.getElementById('quoteModalTitle').textContent = '새 문구 등록 [NEW ENTRY]';
+      document.getElementById('quoteTitle').value = '';
+      document.getElementById('quoteContent').value = '';
+      document.getElementById('quoteContentEn').value = '';
+      toggleEnEditorInput(false);
+      updateEditorEnCharCount();
+      document.getElementById('quoteMemo').value = '';
+      document.getElementById('quoteFavorite').checked = false;
+      const spicyEl = document.getElementById('quoteSpicy');
+      if (spicyEl) spicyEl.checked = false;
+      editorTags = [];
+      editorRelated = [];
+      editorSeries = ['미등록']; // 비워둘 시 기본은 [미등록]
+
+      renderModalSeriesChips();
+      renderEditorTags();
+      renderEditorRelatedChips();
+      updateEditorCharCount();
+      updateRestoreButtonUI();
+
+      document.getElementById('quoteModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function openEditQuoteModal(id) {
+      const q = getQuoteById(id);
+      if (!q) return;
+
+      editorOriginalBackup = q.originalContent || q.content || '';
+      document.getElementById('editQuoteId').value = q.id;
+      document.getElementById('quoteModalTitle').textContent = `문구 수정 [#DOC-${String(q.docNumber).padStart(4, '0')}]`;
+      document.getElementById('quoteTitle').value = q.title || '';
+      document.getElementById('quoteContent').value = q.content || '';
+      const enVal = q.contentEn || '';
+      document.getElementById('quoteContentEn').value = enVal;
+      toggleEnEditorInput(Boolean(enVal));
+      updateEditorEnCharCount();
+      document.getElementById('quoteMemo').value = q.memo || '';
+      document.getElementById('quoteFavorite').checked = Boolean(q.isFavorite);
+      const editSpicyEl = document.getElementById('quoteSpicy');
+      if (editSpicyEl) editSpicyEl.checked = Boolean(q.isSpicy || q.isRestricted);
+      editorTags = [...(q.tags || [])];
+      editorRelated = [...(q.relatedQuoteIds || [])];
+
+      editorSeries = normalizeQuoteSeries(q.series);
+
+      renderModalSeriesChips();
+      renderEditorTags();
+      renderEditorRelatedChips();
+      updateEditorCharCount();
+      updateRestoreButtonUI();
+
+      document.getElementById('quoteModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeQuoteModal() {
+      document.getElementById('quoteModal').classList.add('hidden');
+      document.getElementById('relatedPickerBox').classList.add('hidden');
+      document.getElementById('btnToggleRelatedText').textContent = '문구 선택창 열기';
+    }
+
+    /* ========== QUOTE DETAIL / READER MODAL ========== */
+    let currentDetailQuoteId = null;
+    let detailIsSwapped = false;
+
+    function swapMacros(text) {
+      if (!text) return '';
+      const TEMP = '__SWAP_PLACEHOLDER_MACRO__';
+      return text
+        .replace(/\{\{\s*char\s*\}\}/gi, TEMP)
+        .replace(/\{\{\s*user\s*\}\}/gi, '{{char}}')
+        .replace(new RegExp(TEMP, 'g'), '{{user}}');
+    }
+
+    function renderDetailBody() {
+      if (!currentDetailQuoteId) return;
+      const q = getQuoteById(currentDetailQuoteId);
+      if (!q) return;
+
+      const isEn = (detailCurrentLang === 'en') && Boolean(q.contentEn);
+      let content = (isEn ? q.contentEn : q.content || '').trim();
+      if (detailIsSwapped) {
+        content = swapMacros(content);
+      }
+
+      // 개별 오버라이드 단어 확인
+      const charInput = document.getElementById('detailCharInput');
+      const userInput = document.getElementById('detailUserInput');
+      const customChar = charInput ? charInput.value.trim() : '';
+      const customUser = userInput ? userInput.value.trim() : '';
+
+      const globalChar = (document.getElementById('inputCharName') ? document.getElementById('inputCharName').value.trim() : macroSettings.charName) || '{{char}}';
+      const globalUser = (document.getElementById('inputUserName') ? document.getElementById('inputUserName').value.trim() : macroSettings.userName) || '{{user}}';
+
+      const charVal = customChar || globalChar;
+      const userVal = customUser || globalUser;
+
+      const hasCustom = customChar !== '' || customUser !== '';
+      const isReplaced = hasCustom || macroSettings.previewReplaced;
+
+      const bodyHtml = isReplaced
+        ? formatReplacedHighlights(content, charVal, userVal)
+        : formatMacroHighlights(content);
+
+      document.getElementById('detailBodyContent').innerHTML = bodyHtml;
+
+      // 글자수 재계산 (공백 포함 글자수)
+      const currentText = isReplaced ? replaceMacros(content, charVal, userVal) : content;
+      const counts = calculateCharCount(currentText);
+      document.getElementById('detailTotalChar').textContent = counts.total;
+
+      // 언어 전환 버튼 UI 갱신 (하단 툴바)
+      const btnLang = document.getElementById('btnDetailToggleLang');
+      const txtLang = document.getElementById('detailLangBtnText');
+
+      if (q.contentEn) {
+        if (btnLang) {
+          btnLang.classList.remove('hidden');
+          if (isEn) {
+            btnLang.className = 'px-2.5 py-1.5 rounded bg-indigo-600 text-white border border-indigo-700 text-[11px] font-bold flex items-center gap-1 transition-all active:scale-95 shadow-sm cursor-pointer shrink-0';
+            btnLang.title = '한국어로 전환';
+          } else {
+            btnLang.className = 'px-2.5 py-1.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold flex items-center gap-1 transition-all active:scale-95 shadow-2xs cursor-pointer shrink-0';
+            btnLang.title = '영어로 전환';
+          }
+          if (txtLang) txtLang.textContent = '🇰🇷↔🇺🇸';
+        }
+      } else {
+        if (btnLang) btnLang.classList.add('hidden');
+      }
+
+      // 스왑 버튼 UI 갱신
+      const btnSwap = document.getElementById('btnDetailSwapCharUser');
+      const txtSwap = document.getElementById('btnDetailSwapText');
+      if (btnSwap && txtSwap) {
+        if (detailIsSwapped) {
+          btnSwap.className = 'px-2.5 py-1.5 rounded bg-purple-600 text-white border border-purple-700 text-[11px] font-bold flex items-center gap-1 shadow-sm active:scale-95 transition-all shrink-0';
+          btnSwap.title = '{{char}}와 {{user}} 역할 스왑 해제 (클릭 시 원상복구)';
+        } else {
+          btnSwap.className = 'px-2.5 py-1.5 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-semibold flex items-center gap-1 transition-all active:scale-95 shrink-0';
+          btnSwap.title = '{{char}}와 {{user}} 역할을 서로 맞바꿉니다 (스왑)';
+        }
+        txtSwap.textContent = '{{char}} ↔ {{user}}';
+      }
+    }
+
+    function toggleDetailLanguage() {
+      if (!currentDetailQuoteId) return;
+      const q = getQuoteById(currentDetailQuoteId);
+      if (!q || !q.contentEn) return;
+      detailCurrentLang = (detailCurrentLang === 'ko') ? 'en' : 'ko';
+      cardLangState.set(currentDetailQuoteId, detailCurrentLang);
+      renderDetailBody();
+      showToast(detailCurrentLang === 'en' ? '🇺🇸 영어 버전으로 전환했습니다.' : '🇰🇷 한국어 버전으로 전환했습니다.');
+    }
+
+    function toggleDetailSwapCharUser() {
+      detailIsSwapped = !detailIsSwapped;
+      renderDetailBody();
+      showToast(detailIsSwapped ? '{{char}}와 {{user}} 역할을 서로 맞바꾸었습니다.' : '원래 매크로 순서로 되돌렸습니다.');
+    }
+
+    function toggleDetailReplacerBar() {
+      const bar = document.getElementById('detailReplacerBar');
+      if (!bar) return;
+      bar.classList.toggle('hidden');
+      if (!bar.classList.contains('hidden')) {
+        const charInput = document.getElementById('detailCharInput');
+        if (charInput && !charInput.value) {
+          const globalChar = document.getElementById('inputCharName') ? document.getElementById('inputCharName').value.trim() : macroSettings.charName;
+          const globalUser = document.getElementById('inputUserName') ? document.getElementById('inputUserName').value.trim() : macroSettings.userName;
+          if (globalChar) charInput.value = globalChar;
+          const userInput = document.getElementById('detailUserInput');
+          if (userInput && !userInput.value && globalUser) userInput.value = globalUser;
+        }
+        if (charInput) charInput.focus();
+      }
+    }
+
+    function handleDetailOverrideInput() {
+      renderDetailBody();
+    }
+
+    function resetDetailOverrides() {
+      const charInput = document.getElementById('detailCharInput');
+      const userInput = document.getElementById('detailUserInput');
+      if (charInput) charInput.value = '';
+      if (userInput) userInput.value = '';
+      renderDetailBody();
+      showToast('해당 문구 전용 치환값을 기본값으로 복원했습니다.');
+    }
+
+    function toggleDetailRelatedDropdown(forceClose) {
+      const menu = document.getElementById('detailRelatedDropdownMenu');
+      const chevron = document.getElementById('detailRelatedChevron');
+      if (!menu) return;
+      if (forceClose === true || !menu.classList.contains('hidden')) {
+        menu.classList.add('hidden');
+        if (chevron) chevron.classList.remove('rotate-180');
+      } else {
+        menu.classList.remove('hidden');
+        if (chevron) chevron.classList.add('rotate-180');
+      }
+    }
+
+    function navigateToRelatedQuote(targetId) {
+      toggleDetailRelatedDropdown(true);
+      openQuoteDetailModal(targetId);
+      showToast('연관 문구로 전환했습니다.');
+    }
+
+    function openQuoteDetailModal(id) {
+      const q = getQuoteById(id);
+      if (!q) return;
+      currentDetailQuoteId = id;
+      detailIsSwapped = false;
+      detailCurrentLang = (cardLangState.get(id) === 'en' && q.contentEn) ? 'en' : 'ko';
+
+      // 전용 치환 바 초기화
+      const bar = document.getElementById('detailReplacerBar');
+      if (bar) bar.classList.add('hidden');
+      const charInput = document.getElementById('detailCharInput');
+      const userInput = document.getElementById('detailUserInput');
+      if (charInput) charInput.value = '';
+      if (userInput) userInput.value = '';
+
+      document.getElementById('detailDocNumber').textContent = q.title || `#DOC-${String(q.docNumber).padStart(4, '0')}`;
+      
+      // 시리즈 배지
+      const sList = normalizeQuoteSeries(q.series);
+      document.getElementById('detailSeriesBadges').innerHTML = sList.map(s => {
+        const isUnassigned = s === '미등록';
+        return `
+          <span class="text-xs font-semibold ${isUnassigned ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-blue-900 text-blue-100 border-blue-700'} px-2 py-0.5 rounded border flex items-center gap-1">
+            <i data-lucide="${isUnassigned ? 'folder-minus' : 'layers'}" class="w-3 h-3"></i>
+            <span>${escapeHtml(s)}</span>
+          </span>
+        `;
+      }).join('');
+
+      // 즐겨찾기 아이콘 렌더링
+      updateDetailFavoriteButton(Boolean(q.isFavorite));
+
+      // 빨간맛 배지 노출
+      const spicyBadge = document.getElementById('detailSpicyBadge');
+      if (spicyBadge) {
+        if (q.isSpicy || q.isRestricted) {
+          spicyBadge.classList.remove('hidden');
+        } else {
+          spicyBadge.classList.add('hidden');
+        }
+      }
+
+      // 출처
+      const srcEl = document.getElementById('detailSource');
+      const srcCont = document.getElementById('detailSourceContainer');
+      if (q.source) {
+        if (srcEl) srcEl.textContent = `출처 / 상황: ${q.source}`;
+        if (srcCont) srcCont.classList.remove('hidden');
+      } else {
+        if (srcEl) srcEl.textContent = '';
+        if (srcCont) srcCont.classList.add('hidden');
+      }
+
+      // 본문 렌더링
+      renderDetailBody();
+
+      // 태그
+      const tagsContainer = document.getElementById('detailTagsContainer');
+      if (q.tags && q.tags.length > 0) {
+        tagsContainer.innerHTML = `
+          <i data-lucide="tag" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+          ${q.tags.map(t => `<span class="text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-0.5 rounded-full">#${escapeHtml(t)}</span>`).join('')}
+        `;
+        tagsContainer.classList.remove('hidden');
+      } else {
+        tagsContainer.innerHTML = '';
+        tagsContainer.classList.add('hidden');
+      }
+
+      // 메모
+      const memoContainer = document.getElementById('detailMemoContainer');
+      if (q.memo) {
+        document.getElementById('detailMemoText').textContent = q.memo;
+        memoContainer.classList.remove('hidden');
+      } else {
+        memoContainer.classList.add('hidden');
+      }
+
+      // 연관 문구 헤더 드롭다운 갱신
+      toggleDetailRelatedDropdown(true);
+      const relDropdownCont = document.getElementById('detailRelatedDropdownContainer');
+      const relCountBadge = document.getElementById('detailRelatedCountBadge');
+      const relCountText = document.getElementById('detailRelatedDropdownCountText');
+      const relItems = document.getElementById('detailRelatedDropdownItems');
+
+      const validRelatedQuotes = (q.relatedQuoteIds || [])
+        .map(rid => getQuoteById(rid))
+        .filter(Boolean);
+
+      if (validRelatedQuotes.length > 0) {
+        if (relDropdownCont) relDropdownCont.classList.remove('hidden');
+        if (relCountBadge) relCountBadge.textContent = validRelatedQuotes.length;
+        if (relCountText) relCountText.textContent = `${validRelatedQuotes.length}건`;
+        if (relItems) {
+          relItems.innerHTML = validRelatedQuotes.map(target => {
+            const previewText = escapeHtml((target.content || '').replace(/\n/g, ' '));
+            const seriesTag = Array.isArray(target.series) ? target.series[0] : (target.series || '미등록');
+            return `
+              <button
+                type="button"
+                onclick="navigateToRelatedQuote('${escapeInlineJsString(target.id)}')"
+                class="w-full text-left p-2.5 rounded bg-slate-800/80 hover:bg-slate-700/90 border border-slate-700/80 hover:border-blue-400 transition-all flex flex-col gap-1 cursor-pointer group shadow-sm"
+              >
+                <div class="flex items-center justify-between gap-1.5">
+                  <span class="font-mono font-bold text-xs text-blue-300 group-hover:text-white truncate">
+                    ${target.title ? escapeHtml(target.title) : `#DOC-${String(target.docNumber).padStart(4, '0')}`}
+                  </span>
+                  <span class="text-[10px] font-semibold text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700 shrink-0">
+                    ${escapeHtml(seriesTag)}
+                  </span>
+                </div>
+                <div class="text-[11px] text-slate-300 line-clamp-1 group-hover:text-slate-100 font-sans">
+                  ${previewText}
+                </div>
+              </button>
+            `;
+          }).join('');
+        }
+      } else {
+        if (relDropdownCont) relDropdownCont.classList.add('hidden');
+      }
+
+      document.getElementById('quoteDetailModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeQuoteDetailModal() {
+      toggleDetailRelatedDropdown(true);
+      document.getElementById('quoteDetailModal').classList.add('hidden');
+      currentDetailQuoteId = null;
+    }
+
+    function updateDetailFavoriteButton(isFavorite) {
+      const favBtn = document.getElementById('detailFavoriteBtn');
+      if (!favBtn) return;
+      favBtn.innerHTML = `<i data-lucide="star" class="w-5 h-5 ${isFavorite ? 'fill-amber-400 text-amber-400' : 'text-slate-300 hover:text-amber-400'}"></i>`;
+      favBtn.title = isFavorite ? '즐겨찾기 해제' : '즐겨찾기 등록';
+      if (window.lucide && typeof lucide.createIcons === 'function') {
+        lucide.createIcons({
+          root: favBtn
+        });
+      }
+    }
+
+    async function toggleDetailFavorite() {
+      if (!currentDetailQuoteId) return;
+      await toggleFavorite(currentDetailQuoteId);
+      const q = getQuoteById(currentDetailQuoteId);
+      if (q) {
+        updateDetailFavoriteButton(Boolean(q.isFavorite));
+      }
+    }
+
+    async function copyDetailQuote(replaced) {
+      if (!currentDetailQuoteId) return;
+      const q = getQuoteById(currentDetailQuoteId);
+      if (!q) return;
+
+      const isEn = (detailCurrentLang === 'en') && Boolean(q.contentEn);
+      let content = (isEn ? q.contentEn : (q.content || '')).trim();
+      if (detailIsSwapped) {
+        content = swapMacros(content);
+      }
+
+      if (replaced) {
+        const charInput = document.getElementById('detailCharInput');
+        const userInput = document.getElementById('detailUserInput');
+        const customChar = charInput ? charInput.value.trim() : '';
+        const customUser = userInput ? userInput.value.trim() : '';
+
+        const globalChar = (document.getElementById('inputCharName') ? document.getElementById('inputCharName').value.trim() : macroSettings.charName) || '{{char}}';
+        const globalUser = (document.getElementById('inputUserName') ? document.getElementById('inputUserName').value.trim() : macroSettings.userName) || '{{user}}';
+
+        const charVal = customChar || globalChar;
+        const userVal = customUser || globalUser;
+
+        content = replaceMacros(content, charVal, userVal);
+      }
+
+      const ok = await copyText(content);
+      if (ok) {
+        const title = q.title || `#DOC-${String(q.docNumber).padStart(4, '0')}`;
+        const langLabel = isEn ? '영어 ' : '';
+        const mode = replaced ? `${langLabel}치환 복사` : (detailIsSwapped ? `${langLabel}스왑된 원문 복사` : `${langLabel}원문 복사`);
+        showToast(`[${title}] ${mode}되었습니다.`);
+      } else {
+        showToast('복사에 실패했습니다.', 'error');
+      }
+    }
+
+    function editDetailQuote() {
+      if (!currentDetailQuoteId) return;
+      const id = currentDetailQuoteId;
+      closeQuoteDetailModal();
+      openEditQuoteModal(id);
+    }
+
+    function insertMacro(text, e) {
+      if (e && e.preventDefault) e.preventDefault();
+      const ta = document.getElementById('quoteContent');
+      if (!ta) return;
+      const modalForm = ta.closest('form');
+      const formScroll = modalForm ? modalForm.scrollTop : 0;
+      const taScroll = ta.scrollTop;
+
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const prev = ta.value;
+      ta.value = prev.substring(0, start) + text + prev.substring(end);
+
+      ta.focus({ preventScroll: true });
+      ta.setSelectionRange(start + text.length, start + text.length);
+
+      ta.scrollTop = taScroll;
+      if (modalForm) modalForm.scrollTop = formScroll;
+
+      updateEditorCharCount();
+    }
+
+    let editorOriginalBackup = '';
+
+    function toggleEditorMacroNpc() {
+      const ta = document.getElementById('quoteContent');
+      if (!ta || !ta.value) return;
+      const val = ta.value;
+
+      // 변환 전 원문이 비어있다면 현재 입력 내용을 원문으로 안전하게 보존
+      if (!editorOriginalBackup) {
+        editorOriginalBackup = val;
+      }
+
+      const hasNpcPc = /(?<![a-zA-Z0-9_])NPC(?![a-zA-Z0-9_])|(?<![a-zA-Z0-9_nN])PC(?![a-zA-Z0-9_])/.test(val);
+      const hasMacros = /\{\{\s*(?:char|user)\s*\}\}/i.test(val);
+
+      if (hasNpcPc) {
+        // NPC/PC가 있으면 매크로로 통일 변환 (정규화)
+        ta.value = convertNpcPcToMacros(val);
+      } else if (hasMacros) {
+        // 매크로가 있으면 NPC/PC로 변환
+        ta.value = convertMacrosToNpcPc(val);
+      } else {
+        showToast('본문에 변환할 {{char}}, {{user}} 또는 NPC, PC가 없습니다.', 'error');
+        return;
+      }
+      updateEditorCharCount();
+    }
+
+    function restoreEditorOriginal() {
+      if (!editorOriginalBackup) return;
+      const ta = document.getElementById('quoteContent');
+      ta.value = editorOriginalBackup;
+      updateEditorCharCount();
+    }
+
+    function updateRestoreButtonUI() {
+      const btn = document.getElementById('btnRestoreOriginal');
+      if (!btn) return;
+      const current = document.getElementById('quoteContent') ? document.getElementById('quoteContent').value : '';
+      if (editorOriginalBackup && editorOriginalBackup !== current) {
+        btn.classList.remove('hidden');
+      } else {
+        btn.classList.add('hidden');
+      }
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function updateEditorCharCount() {
+      const ta = document.getElementById('quoteContent');
+      if (!ta) return;
+      const text = ta.value;
+      const c = calculateCharCount(text);
+      const totalEl = document.getElementById('editorTotalCount');
+      if (totalEl) totalEl.textContent = c.total;
+
+      // 사용자가 최초 타이핑할 때 원문 백업이 없으면 현재 상태 기록
+      if (!editorOriginalBackup && text.trim()) {
+        editorOriginalBackup = text;
+      }
+      updateRestoreButtonUI();
+    }
+
+    function handleTagKeydown(e) {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        addTagFromInput();
+      }
+    }
+
+    function addTagFromInput() {
+      const input = document.getElementById('tagInput');
+      const tag = input.value.trim().replace(/^#/, '');
+      if (tag && !editorTags.includes(tag)) {
+        editorTags.push(tag);
+        renderEditorTags();
+        input.value = '';
+      }
+    }
+
+    function removeEditorTag(tag) {
+      editorTags = editorTags.filter(t => t !== tag);
+      renderEditorTags();
+    }
+
+    function renderEditorTags() {
+      const c = document.getElementById('modalTagChips');
+      c.innerHTML = editorTags.map(t => `
+        <span class="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-700 border border-slate-300 rounded-full px-2.5 py-0.5">
+          #${escapeHtml(t)}
+          <button type="button" onclick="removeEditorTag('${escapeInlineJsString(t)}')" class="text-slate-400 hover:text-paint-red ml-0.5">×</button>
+        </span>
+      `).join('');
+    }
+
+    function toggleRelatedPicker() {
+      const box = document.getElementById('relatedPickerBox');
+      const btn = document.getElementById('btnToggleRelatedText');
+      box.classList.toggle('hidden');
+      if (!box.classList.contains('hidden')) {
+        btn.textContent = '목록 접기';
+        renderRelatedCandidateList();
+      } else {
+        btn.textContent = '문구 선택창 열기';
+      }
+    }
+
+    function renderRelatedCandidateList() {
+      const list = document.getElementById('relatedCandidateList');
+      const term = (document.getElementById('modalRelatedSearch').value || '').toLowerCase();
+      const currentId = document.getElementById('editQuoteId').value;
+
+      const candidates = quotes.filter(q => q.id !== currentId && (!term || (q.title && q.title.toLowerCase().includes(term)) || q.content.toLowerCase().includes(term) || (Array.isArray(q.series) ? q.series.join(' ') : q.series).toLowerCase().includes(term) || String(q.docNumber).includes(term))).slice(0, 100);
+
+      if (candidates.length === 0) {
+        list.innerHTML = `<div class="text-center text-xs text-slate-400 py-3">선택 가능한 문구가 없습니다.</div>`;
+        return;
+      }
+
+      list.innerHTML = candidates.map(q => {
+        const isChecked = editorRelated.includes(q.id);
+        const sDisplay = Array.isArray(q.series) ? q.series.join(', ') : q.series;
+        return `
+          <label class="flex items-start gap-2 py-1.5 px-1 hover:bg-slate-50 cursor-pointer text-xs">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleEditorRelated('${escapeInlineJsString(q.id)}', this.checked)" class="mt-0.5 text-paint-blue" />
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1.5 font-mono text-[11px] text-slate-500">
+                <span class="font-bold text-slate-800">${escapeHtml(q.title || ('#DOC-' + String(q.docNumber).padStart(4, '0')))}</span>
+                <span>[${escapeHtml(sDisplay)}]</span>
+              </div>
+              <p class="truncate text-slate-800 text-[11px]">${escapeHtml(q.content)}</p>
+            </div>
+          </label>
+        `;
+      }).join('');
+    }
+
+    function toggleEditorRelated(id, checked) {
+      if (checked) {
+        if (!editorRelated.includes(id)) editorRelated.push(id);
+      } else {
+        editorRelated = editorRelated.filter(item => item !== id);
+      }
+      renderEditorRelatedChips();
+    }
+
+    function renderEditorRelatedChips() {
+      document.getElementById('modalRelatedCount').textContent = editorRelated.length;
+      const c = document.getElementById('modalSelectedRelatedChips');
+      c.innerHTML = editorRelated.map(id => {
+        const q = getQuoteById(id);
+        return `
+          <span class="inline-flex items-center gap-1 text-xs bg-blue-50 text-paint-blue border border-blue-200 rounded px-2 py-0.5 font-mono">
+            #DOC-${q ? String(q.docNumber).padStart(4, '0') : id}
+            <button type="button" onclick="toggleEditorRelated('${escapeInlineJsString(id)}', false); renderRelatedCandidateList();" class="text-slate-400 hover:text-paint-red ml-1">×</button>
+          </span>
+        `;
+      }).join('');
+    }
+
+    async function handleQuoteSubmit(e) {
+      e.preventDefault();
+      const content = document.getElementById('quoteContent').value.trim();
+      if (!content) {
+        alert('문구 본문을 입력해주세요.');
+        return;
+      }
+
+      const title = document.getElementById('quoteTitle') ? document.getElementById('quoteTitle').value.trim() : '';
+      const chosenSeries = normalizeQuoteSeries(editorSeries);
+      const sourceEl = document.getElementById('quoteSource');
+      const editId = document.getElementById('editQuoteId').value;
+      const existingQuote = editId ? getQuoteById(editId) : null;
+      const source = sourceEl ? sourceEl.value.trim() : (existingQuote ? (existingQuote.source || '') : '');
+      const memo = document.getElementById('quoteMemo').value.trim();
+      const isFavorite = document.getElementById('quoteFavorite').checked;
+      const contentEn = document.getElementById('quoteContentEn') ? document.getElementById('quoteContentEn').value.trim() : '';
+      const isSpicy = document.getElementById('quoteSpicy') ? document.getElementById('quoteSpicy').checked : false;
+      const counts = calculateCharCount(content);
+      if (editId) {
+        const q = getQuoteById(editId);
+        if (q) {
+          q.title = title;
+          q.content = content;
+          q.contentEn = contentEn;
+          if (!q.originalContent) q.originalContent = editorOriginalBackup || content;
+          q.source = source;
+          q.series = chosenSeries;
+          q.memo = memo;
+          q.isFavorite = isFavorite;
+          q.isSpicy = isSpicy;
+          q.isRestricted = isSpicy;
+          q.tags = [...editorTags];
+          q.relatedQuoteIds = [...editorRelated];
+          q.charCount = counts.total;
+          q.charCountNoSpace = counts.noSpace;
+          showToast('문구가 수정되었습니다.');
+        }
+      } else {
+        const maxDoc = quotes.reduce((max, q) => Math.max(max, q.docNumber || 0), 0);
+        const newQuote = {
+          id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          docNumber: maxDoc + 1,
+          title,
+          content,
+          contentEn,
+          originalContent: editorOriginalBackup || content,
+          source,
+          series: chosenSeries,
+          memo,
+          isFavorite,
+          isSpicy,
+          isRestricted: isSpicy,
+          tags: [...editorTags],
+          relatedQuoteIds: [...editorRelated],
+          charCount: counts.total,
+          charCountNoSpace: counts.noSpace,
+          createdAt: Date.now()
+        };
+        quotes.unshift(newQuote);
+        showToast(newQuote.title ? `[${newQuote.title}] 문구가 등록되었습니다.` : `#DOC-${String(newQuote.docNumber).padStart(4, '0')} 문구가 등록되었습니다.`);
+      }
+
+      // 양방향 연관 문구 자동 상호 등록 및 해제 동기화
+      const targetCurrentId = editId ? editId : quotes[0].id;
+      const prevRelatedIds = editId && existingQuote ? [...(existingQuote.relatedQuoteIds || [])] : [];
+      const nextRelatedIds = [...editorRelated];
+
+      nextRelatedIds.forEach(tId => {
+        const t = getQuoteById(tId);
+        if (t) {
+          if (!Array.isArray(t.relatedQuoteIds)) t.relatedQuoteIds = [];
+          if (!t.relatedQuoteIds.includes(targetCurrentId)) {
+            t.relatedQuoteIds.push(targetCurrentId);
+          }
+        }
+      });
+
+      prevRelatedIds.forEach(tId => {
+        if (!nextRelatedIds.includes(tId)) {
+          const t = getQuoteById(tId);
+          if (t && Array.isArray(t.relatedQuoteIds)) {
+            t.relatedQuoteIds = t.relatedQuoteIds.filter(id => id !== targetCurrentId);
+          }
+        }
+      });
+
+      await saveState();
+      closeQuoteModal();
+      render();
+    }
+
+    /* ========== RANDOM SPOTLIGHT ========== */
+    function openRandomModal() {
+      const candidates = getFilteredQuotes();
+      if (candidates.length === 0) {
+        showToast('추천할 문구가 없습니다. 필터를 확인해주세요.', 'error');
+        return;
+      }
+      document.getElementById('randomModal').classList.remove('hidden');
+      rollRandomQuote();
+    }
+
+    function closeRandomModal() {
+      document.getElementById('randomModal').classList.add('hidden');
+    }
+
+    function rollRandomQuote() {
+      const candidates = getFilteredQuotes();
+      if (candidates.length === 0) return;
+
+      const diceIcon = document.getElementById('randomDiceIcon');
+      diceIcon.classList.add('animate-spin');
+
+      let count = 0;
+      const interval = setInterval(() => {
+        const idx = Math.floor(Math.random() * candidates.length);
+        displayRandomQuote(candidates[idx]);
+        count++;
+        if (count >= 8) {
+          clearInterval(interval);
+          diceIcon.classList.remove('animate-spin');
+        }
+      }, 50);
+    }
+
+    function displayRandomQuote(q) {
+      currentRandomQuote = q;
+      document.getElementById('randomDocNumber').textContent = `#DOC-${String(q.docNumber).padStart(4, '0')}`;
+      const sList = normalizeQuoteSeries(q.series);
+      document.getElementById('randomSeriesBadge').textContent = sList.join(', ');
+      document.getElementById('randomCharCount').textContent = `${q.charCount}자`;
+
+      const charVal = (document.getElementById('inputCharName') ? document.getElementById('inputCharName').value.trim() : macroSettings.charName) || '{{char}}';
+      const userVal = (document.getElementById('inputUserName') ? document.getElementById('inputUserName').value.trim() : macroSettings.userName) || '{{user}}';
+      const htmlContent = macroSettings.previewReplaced
+        ? formatReplacedHighlights(q.content, charVal, userVal)
+        : formatMacroHighlights(q.content);
+      document.getElementById('randomContentBox').innerHTML = htmlContent;
+
+      document.getElementById('randomSource').textContent = q.source ? `출처: ${q.source}` : '';
+      document.getElementById('randomTags').innerHTML = (q.tags || []).map(t => `<span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">#${escapeHtml(t)}</span>`).join('');
+    }
+
+    async function copyRandomQuote() {
+      if (!currentRandomQuote) return;
+      const charVal = (document.getElementById('inputCharName') ? document.getElementById('inputCharName').value.trim() : macroSettings.charName) || '{{char}}';
+      const userVal = (document.getElementById('inputUserName') ? document.getElementById('inputUserName').value.trim() : macroSettings.userName) || '{{user}}';
+      const text = replaceMacros(currentRandomQuote.content, charVal, userVal);
+      const ok = await copyText(text);
+      if (ok) showToast('추천 문구(치환본)를 복사했습니다!');
+    }
+
+    function jumpToCurrentRandomQuote() {
+      if (!currentRandomQuote) return;
+      const targetId = currentRandomQuote.id;
+      closeRandomModal();
+      scrollToQuote(targetId);
+    }
+
+    /* ========== BACKUP / RESTORE ========== */
+    function openBackupModal() {
+      document.getElementById('backupModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeBackupModal() {
+      document.getElementById('backupModal').classList.add('hidden');
+    }
+
+    function downloadBackupJson() {
+      const data = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        quotes,
+        series: seriesList,
+        settings: macroSettings
+      };
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const now = new Date();
+      const d = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ooc-archive-backup-${d}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('백업 파일(.json)이 다운로드되었습니다.');
+    }
+
+    function handleBackupFileUpload(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const parsed = JSON.parse(event.target.result);
+          const mode = document.querySelector('input[name="importModeRadio"]:checked')?.value || 'merge';
+
+          const imported = parseArchivePayload(parsed);
+          const importedQuotes = imported.quotes;
+          const importedSeries = imported.series;
+
+          if (mode === 'overwrite') {
+            quotes = importedQuotes;
+            if (importedSeries.length > 0) seriesList = importedSeries;
+          } else {
+            // 병합 모드
+            const mergedQuotes = new Map(quotes.map(item => [item.id, item]));
+            importedQuotes.forEach(item => mergedQuotes.set(item.id, item));
+            quotes = [...mergedQuotes.values()];
+
+            const existingSeriesIds = new Set(seriesList.map(item => item.id));
+            const existingSeriesNames = new Set(seriesList.map(item => item.name));
+            importedSeries.forEach(item => {
+              if (existingSeriesIds.has(item.id) || existingSeriesNames.has(item.name)) return;
+              seriesList.push(item);
+              existingSeriesIds.add(item.id);
+              existingSeriesNames.add(item.name);
+            });
+          }
+
+          if (!Array.isArray(parsed) && parsed.settings) {
+            macroSettings = imported.settings;
+            applyMacroSettingsToUI();
+          }
+
+          await saveState();
+          closeBackupModal();
+          render();
+          showToast(`성공적으로 ${importedQuotes.length}개 문구를 복원했습니다!`);
+        } catch (err) {
+          alert('JSON 파일 형식이 올바르지 않습니다: ' + err.message);
+        }
+      };
+      reader.readAsText(file, 'utf-8');
+      e.target.value = '';
+    }
+
+    async function resetToInitialSampleData() {
+      if (confirm('초기 샘플 데이터로 복원하시겠습니까? 현재 데이터가 모두 초기화됩니다.')) {
+        quotes = [...DEFAULT_QUOTES];
+        seriesList = [...DEFAULT_SERIES];
+        await saveState();
+        closeBackupModal();
+        render();
+        showToast('기본 샘플 데이터로 복원되었습니다.');
+      }
+    }
+
+    /* ========== ESCAPE & BACKDROP CLOSE ========== */
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        // 문구 등록/수정 모달은 작성 중 데이터 보호를 위해 반드시 X 또는 [닫기]를 눌렀을 때만 꺼지도록 보호
+        closeRandomModal();
+        closeBackupModal();
+      }
+    });
+
+    // randomModal, backupModal만 배경 클릭 시 닫히도록 하고, quoteModal은 반드시 X나 [닫기]로만 닫히도록 보장
+    document.querySelectorAll('#randomModal, #backupModal').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          closeRandomModal();
+          closeBackupModal();
+        }
+      });
+    });
+
+    /* ========== INITIAL BOOTSTRAP ========== */
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadState();
+      render();
+    });
+  </script>
+</body>
+</html>
