@@ -533,15 +533,43 @@
 
         <!-- 태그 -->
         <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1">
-            <i data-lucide="tag" class="w-3.5 h-3.5 text-paint-blue"></i>
-            <span>태그 (쉼표 또는 ENTER로 추가)</span>
-          </label>
-          <div class="flex gap-2">
-            <input id="tagInput" type="text" onkeydown="handleTagKeydown(event)" placeholder="태그 입력..." class="flex-1 text-xs border border-slate-300 rounded px-2.5 py-1.5 focus:outline-none focus:border-paint-blue" />
-            <button type="button" onclick="addTagFromInput()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold border border-slate-300">추가</button>
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1">
+              <i data-lucide="tag" class="w-3.5 h-3.5 text-paint-blue"></i>
+              <span>태그 (쉼표 또는 ENTER로 추가)</span>
+            </label>
+            <span id="modalSelectedTagCount" class="text-[11px] font-mono text-paint-blue font-bold">0개 선택됨</span>
           </div>
-          <div id="modalTagChips" class="flex flex-wrap gap-1.5 mt-1"></div>
+
+          <!-- 긴 직접 입력창 + [추가] + [기존 태그 선택] 버튼 -->
+          <div class="flex gap-1.5 sm:gap-2 items-center">
+            <input
+              id="tagInput"
+              type="text"
+              onkeydown="handleTagKeydown(event)"
+              placeholder="태그 입력..."
+              class="flex-1 text-xs border border-slate-300 rounded px-3 py-2 font-medium focus:outline-none focus:border-paint-blue focus:ring-1 focus:ring-paint-blue"
+            />
+            <button
+              type="button"
+              onclick="addTagFromInput()"
+              class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold border border-slate-300 active:scale-95 transition-all shrink-0"
+            >
+              추가
+            </button>
+            <button
+              type="button"
+              onclick="openTagPickerModal()"
+              class="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-paint-blue border border-blue-200 rounded text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-2xs shrink-0 cursor-pointer"
+              title="기존에 등록된 태그 목록 팝업 열기"
+            >
+              <i data-lucide="tags" class="w-3.5 h-3.5 text-paint-blue"></i>
+              <span>기존 태그 선택</span>
+            </button>
+          </div>
+
+          <!-- 선택된 태그 칩 영역 -->
+          <div id="modalTagChips" class="flex flex-wrap items-center gap-1.5 min-h-[32px] p-1.5 bg-slate-50 border border-slate-200 rounded mt-0.5"></div>
         </div>
 
         <!-- 연관 문구 연결 -->
@@ -599,6 +627,83 @@
           <button type="submit" class="px-5 py-2 rounded bg-paint-blue hover:bg-paint-blue-hover text-white text-xs font-bold shadow-md active:scale-95">저장하기</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- 1-1. 기존 태그 선택 팝업 모달 -->
+  <div id="tagPickerModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs overflow-y-auto">
+    <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-lg overflow-hidden my-6 flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
+      <!-- 모달 헤더 -->
+      <div class="bg-paint-navy border-b border-slate-700 px-4 sm:px-5 py-2.5 flex items-center justify-between text-white shrink-0">
+        <div class="flex items-center gap-2">
+          <i data-lucide="tags" class="w-4 h-4 text-blue-400"></i>
+          <h2 class="font-bold text-xs sm:text-sm font-mono tracking-wide">
+            기존 태그 선택 [TAG PICKER]
+          </h2>
+        </div>
+        <button type="button" onclick="closeTagPickerModal(false)" class="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- 모달 본문 -->
+      <div class="p-4 sm:p-5 flex flex-col gap-3 flex-1 overflow-y-auto">
+        <!-- 검색 & 전체선택/해제 컨트롤 바 -->
+        <div class="flex items-center gap-2">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+            <input
+              id="tagPickerSearchInput"
+              type="text"
+              oninput="renderTagPickerList()"
+              placeholder="기존 태그 검색..."
+              class="w-full text-xs pl-8 pr-2.5 py-1.5 border border-slate-300 rounded focus:outline-none focus:border-paint-blue focus:ring-1 focus:ring-paint-blue"
+            />
+          </div>
+          <button
+            type="button"
+            onclick="toggleAllTagPicker(true)"
+            class="px-2.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-semibold shrink-0 active:scale-95 transition-all"
+          >
+            전체 선택
+          </button>
+          <button
+            type="button"
+            onclick="toggleAllTagPicker(false)"
+            class="px-2.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-semibold shrink-0 active:scale-95 transition-all"
+          >
+            전체 해제
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between text-xs text-slate-500 border-b border-slate-100 pb-1.5">
+          <span>원하는 태그를 클릭하여 선택하세요:</span>
+          <span id="tagPickerSelectedCount" class="font-mono text-paint-blue font-bold">0개 선택됨</span>
+        </div>
+
+        <!-- 태그 칩 목록 -->
+        <div id="tagPickerListContainer" class="flex flex-wrap gap-2 max-h-72 overflow-y-auto p-3 bg-slate-50 border border-slate-200 rounded-lg">
+          <!-- JS 렌더링 -->
+        </div>
+      </div>
+
+      <!-- 모달 푸터 [취소] [확인] -->
+      <div class="bg-slate-100 border-t border-slate-200 px-4 py-2.5 flex items-center justify-end gap-2 shrink-0">
+        <button
+          type="button"
+          onclick="closeTagPickerModal(false)"
+          class="px-4 py-1.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-200 text-xs font-semibold active:scale-95 transition-all"
+        >
+          취소
+        </button>
+        <button
+          type="button"
+          onclick="closeTagPickerModal(true)"
+          class="px-5 py-1.5 rounded bg-paint-blue hover:bg-paint-blue-hover text-white text-xs font-bold shadow-md active:scale-95 transition-all"
+        >
+          확인
+        </button>
+      </div>
     </div>
   </div>
 
@@ -2698,6 +2803,15 @@
       }
     }
 
+    function resetModalScrollTop() {
+      const modalForm = document.querySelector('#quoteModal form');
+      if (modalForm) modalForm.scrollTop = 0;
+      const content = document.getElementById('quoteContent');
+      if (content) content.scrollTop = 0;
+      const contentEn = document.getElementById('quoteContentEn');
+      if (contentEn) contentEn.scrollTop = 0;
+    }
+
     function openQuoteModal() {
       editorOriginalBackup = '';
       document.getElementById('editQuoteId').value = '';
@@ -2721,7 +2835,9 @@
       updateEditorCharCount();
       updateRestoreButtonUI();
 
+      resetModalScrollTop();
       document.getElementById('quoteModal').classList.remove('hidden');
+      requestAnimationFrame(() => resetModalScrollTop());
       lucide.createIcons();
     }
 
@@ -2753,11 +2869,14 @@
       updateEditorCharCount();
       updateRestoreButtonUI();
 
+      resetModalScrollTop();
       document.getElementById('quoteModal').classList.remove('hidden');
+      requestAnimationFrame(() => resetModalScrollTop());
       lucide.createIcons();
     }
 
     function closeQuoteModal() {
+      resetModalScrollTop();
       document.getElementById('quoteModal').classList.add('hidden');
       document.getElementById('relatedPickerBox').classList.add('hidden');
       document.getElementById('btnToggleRelatedText').textContent = '문구 선택창 열기';
@@ -3201,6 +3320,113 @@
       }
     }
 
+    function getAllExistingTags() {
+      const counts = {};
+      quotes.forEach(q => {
+        if (Array.isArray(q.tags)) {
+          q.tags.forEach(t => {
+            if (t && typeof t === 'string' && t.trim()) {
+              const clean = t.trim().replace(/^#/, '');
+              if (clean) counts[clean] = (counts[clean] || 0) + 1;
+            }
+          });
+        }
+      });
+      return Object.entries(counts)
+        .map(([tag, count]) => ({ tag, count }))
+        .sort((a, b) => a.tag.localeCompare(b.tag, 'ko'));
+    }
+
+    let tempPickerTags = new Set();
+
+    function openTagPickerModal() {
+      tempPickerTags = new Set(editorTags);
+      const searchInput = document.getElementById('tagPickerSearchInput');
+      if (searchInput) searchInput.value = '';
+      renderTagPickerList();
+      document.getElementById('tagPickerModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeTagPickerModal(confirmed = false) {
+      if (confirmed) {
+        editorTags = Array.from(tempPickerTags);
+        renderEditorTags();
+      }
+      document.getElementById('tagPickerModal').classList.add('hidden');
+    }
+
+    function toggleTagPickerItem(tag) {
+      const clean = (tag || '').trim().replace(/^#/, '');
+      if (!clean) return;
+      if (tempPickerTags.has(clean)) {
+        tempPickerTags.delete(clean);
+      } else {
+        tempPickerTags.add(clean);
+      }
+      renderTagPickerList();
+    }
+
+    function toggleAllTagPicker(selectAll) {
+      const query = (document.getElementById('tagPickerSearchInput')?.value || '').trim().toLowerCase();
+      const allTags = getAllExistingTags();
+      const filtered = query
+        ? allTags.filter(({ tag }) => tag.toLowerCase().includes(query))
+        : allTags;
+
+      filtered.forEach(({ tag }) => {
+        if (selectAll) {
+          tempPickerTags.add(tag);
+        } else {
+          tempPickerTags.delete(tag);
+        }
+      });
+      renderTagPickerList();
+    }
+
+    function renderTagPickerList() {
+      const container = document.getElementById('tagPickerListContainer');
+      const countEl = document.getElementById('tagPickerSelectedCount');
+      if (countEl) countEl.textContent = `${tempPickerTags.size}개 선택됨`;
+
+      if (!container) return;
+
+      const query = (document.getElementById('tagPickerSearchInput')?.value || '').trim().toLowerCase();
+      const allTags = getAllExistingTags();
+      const filtered = query
+        ? allTags.filter(({ tag }) => tag.toLowerCase().includes(query))
+        : allTags;
+
+      if (filtered.length === 0) {
+        if (allTags.length === 0) {
+          container.innerHTML = '<div class="w-full py-6 text-center text-xs text-slate-400 italic">등록된 기존 태그가 없습니다. 직접 태그를 입력하여 등록해 보세요.</div>';
+        } else {
+          container.innerHTML = `<div class="w-full py-6 text-center text-xs text-slate-400 italic">"${escapeHtml(query)}" 검색 결과가 없습니다.</div>`;
+        }
+        return;
+      }
+
+      container.innerHTML = filtered.map(({ tag, count }) => {
+        const isSelected = tempPickerTags.has(tag);
+        return `
+          <button
+            type="button"
+            onclick="toggleTagPickerItem('${escapeInlineJsString(tag)}')"
+            class="text-xs px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 select-none cursor-pointer ${
+              isSelected
+                ? 'bg-paint-blue text-white border-paint-blue font-bold shadow-xs'
+                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-100 font-medium'
+            }"
+          >
+            <span>#${escapeHtml(tag)}</span>
+            <span class="text-[10px] opacity-75 font-mono">(${count})</span>
+            ${isSelected ? '<i data-lucide="check" class="w-3.5 h-3.5 text-white"></i>' : ''}
+          </button>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
     function addTagFromInput() {
       const input = document.getElementById('tagInput');
       const tag = input.value.trim().replace(/^#/, '');
@@ -3217,13 +3443,23 @@
     }
 
     function renderEditorTags() {
-      const c = document.getElementById('modalTagChips');
-      c.innerHTML = editorTags.map(t => `
-        <span class="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-700 border border-slate-300 rounded-full px-2.5 py-0.5">
-          #${escapeHtml(t)}
-          <button type="button" onclick="removeEditorTag('${escapeInlineJsString(t)}')" class="text-slate-400 hover:text-paint-red ml-0.5">×</button>
-        </span>
-      `).join('');
+      const chipContainer = document.getElementById('modalTagChips');
+      const countEl = document.getElementById('modalSelectedTagCount');
+      if (countEl) countEl.textContent = `${editorTags.length}개 선택됨`;
+
+      if (chipContainer) {
+        if (editorTags.length === 0) {
+          chipContainer.innerHTML = '<span class="text-xs text-slate-400 italic py-0.5">선택된 태그가 없습니다.</span>';
+        } else {
+          chipContainer.innerHTML = editorTags.map(t => `
+            <span class="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-paint-blue border border-blue-200 rounded-full px-2.5 py-0.5 shadow-2xs">
+              <span>#${escapeHtml(t)}</span>
+              <button type="button" onclick="removeEditorTag('${escapeInlineJsString(t)}')" class="text-blue-400 hover:text-paint-red ml-0.5" title="태그 해제">×</button>
+            </span>
+          `).join('');
+        }
+      }
+      lucide.createIcons();
     }
 
     function toggleRelatedPicker() {
