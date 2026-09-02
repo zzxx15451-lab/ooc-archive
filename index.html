@@ -948,13 +948,25 @@
         <!-- 태그 칩들 -->
         <div id="detailTagsContainer" class="flex flex-wrap gap-1.5 items-center"></div>
 
-        <!-- 메모 섹션 -->
-        <div id="detailMemoContainer" class="hidden border border-blue-200 bg-blue-50/40 rounded p-4 text-xs sm:text-sm text-slate-700 whitespace-pre-wrap">
-          <div class="flex items-center gap-1.5 font-bold text-paint-blue mb-1.5">
-            <i data-lucide="message-square" class="w-4 h-4"></i>
-            <span>메모 / 해설</span>
+        <!-- 메모 섹션 (접이식 아코디언) -->
+        <div id="detailMemoContainer" class="hidden border border-blue-200 bg-blue-50/40 rounded-lg overflow-hidden transition-all shadow-2xs">
+          <button
+            type="button"
+            onclick="toggleDetailMemoCollapse()"
+            class="w-full px-4 py-2.5 flex items-center justify-between text-xs font-bold text-paint-blue hover:bg-blue-100/50 transition-colors select-none cursor-pointer"
+          >
+            <div class="flex items-center gap-2">
+              <i data-lucide="message-square" class="w-4 h-4 text-paint-blue"></i>
+              <span class="tracking-wide">메모 / 해설</span>
+            </div>
+            <div class="flex items-center gap-1 text-slate-400 text-[11px] font-normal">
+              <span id="detailMemoStateText">열기</span>
+              <i id="detailMemoChevron" data-lucide="chevron-down" class="w-4 h-4 text-paint-blue transition-transform"></i>
+            </div>
+          </button>
+          <div id="detailMemoContent" class="hidden px-4 pb-3.5 pt-1.5 border-t border-blue-100">
+            <div id="detailMemoText" class="whitespace-pre-wrap leading-relaxed break-words font-sans text-xs sm:text-sm text-slate-700"></div>
           </div>
-          <div id="detailMemoText"></div>
         </div>
 
       </div>
@@ -2255,22 +2267,6 @@
         }
       }
 
-      // 메모 섹션
-      const memoHtml = q.memo ? `
-        <div class="border border-blue-200 bg-blue-50/40 rounded overflow-hidden">
-          <button onclick="toggleMemoView('${escapeInlineJsString(`memo-${q.id}`)}')" class="w-full px-3 py-1.5 text-xs font-semibold text-paint-blue flex items-center justify-between hover:bg-blue-50 transition-colors">
-            <div class="flex items-center gap-1.5">
-              <i data-lucide="message-square" class="w-3.5 h-3.5 text-paint-blue"></i>
-              <span>메모 / 해설</span>
-            </div>
-            <i id="memo-icon-${escapeHtml(q.id)}" data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-          </button>
-          <div id="memo-${escapeHtml(q.id)}" class="hidden px-3 pb-2.5 pt-1 text-xs text-slate-700 border-t border-blue-100 whitespace-pre-wrap">
-            ${escapeHtml(q.memo)}
-          </div>
-        </div>
-      ` : '';
-
       return `
         <article id="quote-${escapeHtml(q.id)}" class="bg-white rounded-lg border border-paint-border hover:border-slate-400 transition-all shadow-sm overflow-hidden flex flex-col justify-between">
           <!-- 카드 상단 바 -->
@@ -2340,7 +2336,6 @@
               <div class="line-clamp-6 whitespace-pre-wrap">${bodyHtml}</div>
             </div>
             ${tagsHtml}
-            ${memoHtml}
           </div>
 
           <!-- 하단 액션 툴바 -->
@@ -3106,8 +3101,10 @@
       if (q.memo) {
         document.getElementById('detailMemoText').textContent = q.memo;
         memoContainer.classList.remove('hidden');
+        toggleDetailMemoCollapse(false);
       } else {
         memoContainer.classList.add('hidden');
+        toggleDetailMemoCollapse(false);
       }
 
       // 연관 문구 헤더 드롭다운 갱신
@@ -3158,8 +3155,28 @@
       lucide.createIcons();
     }
 
+    function toggleDetailMemoCollapse(forceOpen = null) {
+      const content = document.getElementById('detailMemoContent');
+      const chevron = document.getElementById('detailMemoChevron');
+      const stateText = document.getElementById('detailMemoStateText');
+      if (!content) return;
+
+      const shouldOpen = forceOpen !== null ? forceOpen : content.classList.contains('hidden');
+      if (shouldOpen) {
+        content.classList.remove('hidden');
+        if (chevron) chevron.classList.add('rotate-180');
+        if (stateText) stateText.textContent = '접기';
+      } else {
+        content.classList.add('hidden');
+        if (chevron) chevron.classList.remove('rotate-180');
+        if (stateText) stateText.textContent = '열기';
+      }
+      lucide.createIcons();
+    }
+
     function closeQuoteDetailModal() {
       toggleDetailRelatedDropdown(true);
+      toggleDetailMemoCollapse(false);
       document.getElementById('quoteDetailModal').classList.add('hidden');
       currentDetailQuoteId = null;
     }
