@@ -1323,15 +1323,26 @@
     };
 
     function utf8ToBase64(str) {
-      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
-        return String.fromCharCode('0x' + p1);
-      }));
+      if (!str) return '';
+      const bytes = new TextEncoder().encode(str);
+      const chunkSize = 0x8000; // 32KB 청크 단위 처리 (대용량 스택 오버플로 방지)
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        binary += String.fromCharCode.apply(null, chunk);
+      }
+      return btoa(binary);
     }
 
     function base64ToUtf8(str) {
-      return decodeURIComponent(Array.prototype.map.call(atob(str.replace(/\s/g, '')), (c) => {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
+      if (!str) return '';
+      const clean = str.replace(/\s/g, '');
+      const binary = atob(clean);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return new TextDecoder().decode(bytes);
     }
 
     async function dbSaveGithubConfig(config) {
@@ -1491,7 +1502,7 @@
         const res = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${githubConfig.token}`,
-            'Accept': 'application/vnd.github+json'
+            'Accept': 'application/vnd.github.raw+json'
           }
         });
 
@@ -1507,13 +1518,25 @@
           throw new Error(err.message || `HTTP ${res.status}`);
         }
 
-        const data = await res.json();
-        const jsonStr = base64ToUtf8(data.content);
-        const parsed = JSON.parse(jsonStr);
+        // 1MB 미만이든 1MB~100MB 대용량이든 안전하게 파싱 (Raw 및 Base64 하이브리드 지원)
+        const responseText = await res.text();
+        let parsed;
+        try {
+          parsed = JSON.parse(responseText);
+        } catch (parseErr) {
+          throw new Error('데이터 파싱 오류: 올바른 JSON 형식이 아닙니다.');
+        }
+
+        // 만약 구형 API 응답(Base64 객체) 형태로 왔을 경우를 대비한 자동 방어
+        if (parsed && typeof parsed === 'object' && typeof parsed.content === 'string' && !parsed.quotes) {
+          const decoded = base64ToUtf8(parsed.content);
+          parsed = JSON.parse(decoded);
+        }
 
         const incoming = parseArchivePayload(parsed);
-        quotes = incoming.quotes;
-        if (incoming.series.length > 0) seriesList = incoming.series;
+        const merged = mergeArchivePayload(quotes, incoming.quotes, seriesList, incoming.series);
+        quotes = merged.quotes;
+        if (merged.series.length > 0) seriesList = merged.series;
         if (!Array.isArray(parsed) && parsed.settings) {
           macroSettings = incoming.settings;
           applyMacroSettingsToUI();
@@ -1522,7 +1545,12 @@
         await saveState(true);
         render();
 
-        if (!isSilent) showToast(`✅ 깃허브에서 ${quotes.length}개 문구를 불러왔습니다!`);
+        // 로컬에만 있던 새로운 문구가 보존되어 합쳐졌다면 깃허브에도 완전체로 자동 동기화
+        if (merged.hasNewLocalData && githubConfig.autoSync) {
+          scheduleGithubSync();
+        }
+
+        if (!isSilent) showToast(`✅ 깃허브와 스마트 병합 완료! (총 ${quotes.length}개 보관 중)`);
         return true;
       } catch (err) {
         console.error('깃허브 가져오기 실패:', err);
@@ -1659,6 +1687,69 @@
         throw new Error('백업 파일에 올바른 문구 목록이 없습니다.');
       }
       return normalizeArchiveData(parsed.quotes, parsed.series, parsed.settings);
+    }
+
+    /**
+     * 문구별 스마트 병합 (Smart Merge)
+     * - 로컬과 원격 데이터를 ID 기준으로 안전하게 병합
+     * - 로컬에만 있는 새로운 문구는 절대로 삭제하지 않고 100% 보존
+     * - 원격에 새로 추가된 문구는 로컬로 안전하게 유입
+     * - 양쪽에 모두 존재하는 문구는 updatedAt(또는 createdAt)이 더 최신인 데이터 채택
+     */
+    function mergeArchivePayload(localQuotes, incomingQuotes, localSeries, incomingSeries) {
+      let hasNewLocalData = false;
+      const mergedMap = new Map();
+
+      // 1. 원격 문구들을 맵에 등록
+      (incomingQuotes || []).forEach(q => {
+        if (q && q.id) {
+          mergedMap.set(q.id, { ...q });
+        }
+      });
+
+      // 2. 로컬 문구들과 대조 병합
+      (localQuotes || []).forEach(localQ => {
+        if (!localQ || !localQ.id) return;
+
+        if (!mergedMap.has(localQ.id)) {
+          // 깃허브에는 없고 로컬에만 있는 새 문구 -> 삭제하지 않고 100% 보존!
+          mergedMap.set(localQ.id, { ...localQ });
+          hasNewLocalData = true;
+        } else {
+          // 양쪽에 모두 있는 문구 -> 수정 시각(updatedAt) 비교
+          const incomingQ = mergedMap.get(localQ.id);
+          const localTime = Number(localQ.updatedAt || localQ.createdAt || 0);
+          const incomingTime = Number(incomingQ.updatedAt || incomingQ.createdAt || 0);
+
+          if (localTime > incomingTime) {
+            // 로컬에서 더 최근에 수정한 내역이 있다면 로컬 버전 채택 및 역동기화 플래그 ON
+            mergedMap.set(localQ.id, { ...localQ });
+            hasNewLocalData = true;
+          }
+        }
+      });
+
+      // 3. 시리즈 목록도 안전하게 합집합(Union) 병합
+      const seriesListMerged = [];
+      const seenSeriesNames = new Set();
+
+      [...(localSeries || []), ...(incomingSeries || [])].forEach(sItem => {
+        if (!sItem) return;
+        const name = typeof sItem === 'string' ? sItem.trim() : (sItem.name || '').trim();
+        if (!name || seenSeriesNames.has(name)) return;
+        seenSeriesNames.add(name);
+        seriesListMerged.push(typeof sItem === 'string' ? { id: `series-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name, desc: '' } : sItem);
+      });
+
+      // 4. 최종 정렬: docNumber 기준 순차 정렬 유지
+      const finalQuotes = Array.from(mergedMap.values());
+      finalQuotes.sort((a, b) => (a.docNumber || 0) - (b.docNumber || 0));
+
+      return {
+        quotes: finalQuotes,
+        series: seriesListMerged,
+        hasNewLocalData
+      };
     }
 
     /* 
@@ -2561,6 +2652,7 @@
       const q = getQuoteById(id);
       if (q) {
         q.isFavorite = !q.isFavorite;
+        q.updatedAt = Date.now();
         await saveState();
         render();
       }
@@ -3580,6 +3672,7 @@
           q.relatedQuoteIds = [...editorRelated];
           q.charCount = counts.total;
           q.charCountNoSpace = counts.noSpace;
+          q.updatedAt = Date.now();
           showToast('문구가 수정되었습니다.');
         }
       } else {
@@ -3601,7 +3694,8 @@
           relatedQuoteIds: [...editorRelated],
           charCount: counts.total,
           charCountNoSpace: counts.noSpace,
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          updatedAt: Date.now()
         };
         quotes.unshift(newQuote);
         showToast(newQuote.title ? `[${newQuote.title}] 문구가 등록되었습니다.` : `#DOC-${String(newQuote.docNumber).padStart(4, '0')} 문구가 등록되었습니다.`);
