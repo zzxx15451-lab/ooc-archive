@@ -458,6 +458,10 @@
                 + {{user}}
               </button>
               <span class="text-slate-300">|</span>
+              <button type="button" onclick="cleanEditorLineBreaks()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors" title="이중 엔터 및 과도한 빈 줄 정리">
+                <i data-lucide="align-justify" class="w-3.5 h-3.5 text-slate-500"></i>
+                <span>줄바꿈 정리</span>
+              </button>
               <button type="button" onclick="toggleEditorMacroNpc()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors" title="{{char}}/{{user}} ↔ NPC/PC 상호 변환">
                 <i data-lucide="arrow-right-left" class="w-3.5 h-3.5 text-slate-500"></i>
                 <span>{{char}} ↔ NPC 변환</span>
@@ -3477,6 +3481,56 @@
       updateEditorCharCount();
     }
 
+    function cleanLineBreaksText(text, mode = 'smart') {
+      if (!text) return '';
+      let cleaned = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      cleaned = cleaned.split('\n').map(line => line.replace(/[ \t\u00A0]+$/g, '')).join('\n');
+
+      if (mode === 'collapseAll') {
+        cleaned = cleaned.replace(/\n\s*\n+/g, '\n');
+      } else {
+        cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+      }
+      return cleaned.trim();
+    }
+
+    function cleanEditorLineBreaks(targetId = 'quoteContent') {
+      const ta = document.getElementById(targetId);
+      if (!ta || !ta.value.trim()) {
+        showToast('정리할 본문 내용이 없습니다.', 'error');
+        return;
+      }
+      const val = ta.value;
+
+      if (!editorOriginalBackup) {
+        editorOriginalBackup = val;
+      }
+
+      const normalized = val.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const hasExcessiveBreaks = /\n{3,}/.test(normalized);
+      const hasDoubleBreaks = /\n\s*\n/.test(normalized);
+
+      let nextVal = '';
+      if (hasExcessiveBreaks) {
+        nextVal = cleanLineBreaksText(val, 'smart');
+        showToast('과도한 빈 줄을 1줄로 정돈했습니다.');
+      } else if (hasDoubleBreaks) {
+        nextVal = cleanLineBreaksText(val, 'collapseAll');
+        showToast('모든 빈 줄을 제거하고 한 줄로 밀착 정돈했습니다.');
+      } else {
+        nextVal = cleanLineBreaksText(val, 'collapseAll');
+        if (nextVal !== val) {
+          showToast('줄 끝 불필요 공백을 정리했습니다.');
+        } else {
+          showToast('이미 깔끔하게 정돈된 본문입니다.');
+          return;
+        }
+      }
+
+      ta.value = nextVal;
+      updateEditorCharCount();
+    }
+
     function restoreEditorOriginal() {
       if (!editorOriginalBackup) return;
       const ta = document.getElementById('quoteContent');
@@ -4003,9 +4057,37 @@
       });
     });
 
+    function setupPasteCleaner() {
+      ['quoteContent', 'quoteContentEn'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('paste', (e) => {
+          const rawText = e.clipboardData ? e.clipboardData.getData('text') : '';
+          if (!rawText) return;
+
+          const hasExcessive = /\r\n|\n{3,}|[ \t]+\n/.test(rawText);
+          if (hasExcessive) {
+            e.preventDefault();
+            const cleaned = cleanLineBreaksText(rawText, 'smart');
+            if (!document.execCommand('insertText', false, cleaned)) {
+              const start = el.selectionStart;
+              const end = el.selectionEnd;
+              el.setRangeText(cleaned, start, end, 'end');
+            }
+            if (id === 'quoteContent') {
+              updateEditorCharCount();
+            } else {
+              updateEditorEnCharCount();
+            }
+          }
+        });
+      });
+    }
+
     /* ========== INITIAL BOOTSTRAP ========== */
     window.addEventListener('DOMContentLoaded', async () => {
       initSidebarSectionState();
+      setupPasteCleaner();
       await loadState();
       render();
     });
