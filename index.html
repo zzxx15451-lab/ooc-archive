@@ -327,6 +327,25 @@
             </div>
           </div>
 
+          <!-- 시리즈 정렬 바 -->
+          <div class="px-3 pt-2 pb-1.5 border-b border-slate-100 flex items-center justify-between text-[11px]">
+            <span class="text-slate-400 font-medium">정렬</span>
+            <div class="inline-flex rounded p-0.5 bg-slate-100 border border-slate-200 gap-0.5">
+              <button
+                id="btnSortSeriesName"
+                type="button"
+                onclick="setSidebarSeriesSort('name')"
+                class="px-2 py-0.5 rounded text-[10px] transition-all font-medium bg-white text-slate-800 font-bold shadow-2xs border border-slate-200"
+              >가나다</button>
+              <button
+                id="btnSortSeriesCount"
+                type="button"
+                onclick="setSidebarSeriesSort('count')"
+                class="px-2 py-0.5 rounded text-[10px] transition-all font-medium text-slate-500 hover:text-slate-700 border border-transparent"
+              >갯수순</button>
+            </div>
+          </div>
+
           <div id="seriesListContainer" class="p-2 flex flex-col gap-1 max-h-60 overflow-y-auto">
             <!-- JS 렌더링 -->
           </div>
@@ -359,6 +378,31 @@
         </div>
 
         <div id="tagSectionContent" class="p-3">
+          <!-- 태그 정렬 바 -->
+          <div class="mb-2 pb-1.5 border-b border-slate-100 flex items-center justify-between text-[11px]">
+            <span class="text-slate-400 font-medium">정렬</span>
+            <div class="inline-flex rounded p-0.5 bg-slate-100 border border-slate-200 gap-0.5">
+              <button
+                id="btnSortTagName"
+                type="button"
+                onclick="setSidebarTagSort('name')"
+                class="px-2 py-0.5 rounded text-[10px] transition-all font-medium bg-white text-slate-800 font-bold shadow-2xs border border-slate-200"
+              >가나다</button>
+              <button
+                id="btnSortTagCount"
+                type="button"
+                onclick="setSidebarTagSort('count')"
+                class="px-2 py-0.5 rounded text-[10px] transition-all font-medium text-slate-500 hover:text-slate-700 border border-transparent"
+              >갯수순</button>
+              <button
+                id="btnSortTagRecent"
+                type="button"
+                onclick="setSidebarTagSort('recent')"
+                class="px-2 py-0.5 rounded text-[10px] transition-all font-medium text-slate-500 hover:text-slate-700 border border-transparent"
+              >최근순</button>
+            </div>
+          </div>
+
           <div id="tagCloudContainer" class="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto pr-1">
             <!-- JS 렌더링 -->
           </div>
@@ -708,9 +752,34 @@
           </button>
         </div>
 
-        <div class="flex items-center justify-between text-xs text-slate-500 border-b border-slate-100 pb-1.5">
-          <span>원하는 태그를 클릭하여 선택하세요:</span>
-          <span id="tagPickerSelectedCount" class="font-mono text-paint-blue font-bold">0개 선택됨</span>
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 border-b border-slate-100 pb-2">
+          <div class="flex items-center gap-2">
+            <span>원하는 태그를 클릭하여 선택하세요:</span>
+            <span id="tagPickerSelectedCount" class="font-mono text-paint-blue font-bold">0개 선택됨</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="text-slate-400 text-[11px] font-medium">정렬</span>
+            <div class="inline-flex rounded p-0.5 bg-slate-200/80 border border-slate-300 gap-0.5">
+              <button
+                id="btnSortPickerName"
+                type="button"
+                onclick="setTagPickerSort('name')"
+                class="px-2 py-0.5 rounded text-[10px] transition-all font-medium bg-white text-slate-800 font-bold shadow-2xs border border-slate-300"
+              >가나다</button>
+              <button
+                id="btnSortPickerCount"
+                type="button"
+                onclick="setTagPickerSort('count')"
+                class="px-2 py-0.5 rounded text-[10px] transition-all font-medium text-slate-600 hover:text-slate-800 border border-transparent"
+              >갯수순</button>
+              <button
+                id="btnSortPickerRecent"
+                type="button"
+                onclick="setTagPickerSort('recent')"
+                class="px-2 py-0.5 rounded text-[10px] transition-all font-medium text-slate-600 hover:text-slate-800 border border-transparent"
+              >최근순</button>
+            </div>
+          </div>
         </div>
 
         <!-- 태그 칩 목록 -->
@@ -2117,6 +2186,79 @@
       lucide.createIcons();
     }
 
+    /* ========== SORTING STATE (SERIES, TAGS, TAG PICKER) ========== */
+    let sidebarSeriesSort = 'name'; // 'name' (가나다순, 기본값) | 'count' (등록갯수순)
+    let sidebarTagSort = 'name';    // 'name' (가나다순) | 'count' (갯수순) | 'recent' (최근등록순)
+    let tagPickerSort = 'name';     // 'name' (가나다순) | 'count' (갯수순) | 'recent' (최근등록순)
+
+    function initSortStates() {
+      try {
+        const savedSeriesSort = localStorage.getItem('ooc_sidebar_series_sort');
+        if (savedSeriesSort === 'count' || savedSeriesSort === 'name') {
+          sidebarSeriesSort = savedSeriesSort;
+        }
+        const savedTagSort = localStorage.getItem('ooc_sidebar_tag_sort');
+        if (savedTagSort === 'count' || savedTagSort === 'recent' || savedTagSort === 'name') {
+          sidebarTagSort = savedTagSort;
+        }
+        const savedPickerSort = localStorage.getItem('ooc_tag_picker_sort');
+        if (savedPickerSort === 'count' || savedPickerSort === 'recent' || savedPickerSort === 'name') {
+          tagPickerSort = savedPickerSort;
+        }
+      } catch (e) {}
+    }
+
+    function updateSidebarSeriesSortButtonsUI() {
+      const btnName = document.getElementById('btnSortSeriesName');
+      const btnCount = document.getElementById('btnSortSeriesCount');
+      if (!btnName || !btnCount) return;
+
+      const activeClass = 'bg-white text-slate-800 font-bold shadow-2xs border border-slate-200';
+      const inactiveClass = 'text-slate-500 hover:text-slate-700 border border-transparent';
+
+      if (sidebarSeriesSort === 'count') {
+        btnCount.className = `px-2 py-0.5 rounded text-[10px] transition-all font-medium ${activeClass}`;
+        btnName.className = `px-2 py-0.5 rounded text-[10px] transition-all font-medium ${inactiveClass}`;
+      } else {
+        btnName.className = `px-2 py-0.5 rounded text-[10px] transition-all font-medium ${activeClass}`;
+        btnCount.className = `px-2 py-0.5 rounded text-[10px] transition-all font-medium ${inactiveClass}`;
+      }
+    }
+
+    function setSidebarSeriesSort(sortType) {
+      if (sidebarSeriesSort === sortType) return;
+      sidebarSeriesSort = sortType;
+      try {
+        localStorage.setItem('ooc_sidebar_series_sort', sortType);
+      } catch (e) {}
+      updateSidebarSeriesSortButtonsUI();
+      renderSidebarSeries();
+    }
+
+    function updateSidebarTagSortButtonsUI() {
+      const btnName = document.getElementById('btnSortTagName');
+      const btnCount = document.getElementById('btnSortTagCount');
+      const btnRecent = document.getElementById('btnSortTagRecent');
+      if (!btnName || !btnCount || !btnRecent) return;
+
+      const activeClass = 'bg-white text-slate-800 font-bold shadow-2xs border border-slate-200';
+      const inactiveClass = 'text-slate-500 hover:text-slate-700 border border-transparent';
+
+      btnName.className = `px-2 py-0.5 rounded text-[10px] transition-all font-medium ${sidebarTagSort === 'name' ? activeClass : inactiveClass}`;
+      btnCount.className = `px-2 py-0.5 rounded text-[10px] transition-all font-medium ${sidebarTagSort === 'count' ? activeClass : inactiveClass}`;
+      btnRecent.className = `px-2 py-0.5 rounded text-[10px] transition-all font-medium ${sidebarTagSort === 'recent' ? activeClass : inactiveClass}`;
+    }
+
+    function setSidebarTagSort(sortType) {
+      if (sidebarTagSort === sortType) return;
+      sidebarTagSort = sortType;
+      try {
+        localStorage.setItem('ooc_sidebar_tag_sort', sortType);
+      } catch (e) {}
+      updateSidebarTagSortButtonsUI();
+      renderSidebarTags();
+    }
+
     function initSidebarSectionState() {
       ['series', 'tags'].forEach(type => {
         try {
@@ -2127,6 +2269,7 @@
         } catch (e) {}
         applySidebarSectionUI(type);
       });
+      initSortStates();
     }
 
     function renderSidebarSeries() {
@@ -2135,6 +2278,8 @@
       if (seriesBadge) {
         seriesBadge.textContent = seriesList.length;
       }
+      updateSidebarSeriesSortButtonsUI();
+
       const counts = Object.create(null);
       quotes.forEach(q => {
         const sList = normalizeQuoteSeries(q.series);
@@ -2143,7 +2288,17 @@
         });
       });
 
-      let itemsHtml = seriesList.map(s => {
+      const sortedSeries = [...seriesList].sort((a, b) => {
+        if (sidebarSeriesSort === 'count') {
+          const countA = counts[a.name] || 0;
+          const countB = counts[b.name] || 0;
+          if (countB !== countA) return countB - countA;
+          return a.name.localeCompare(b.name, 'ko');
+        }
+        return a.name.localeCompare(b.name, 'ko');
+      });
+
+      let itemsHtml = sortedSeries.map(s => {
         const isSelected = currentFilter.series === s.name;
         const count = counts[s.name] || 0;
         return `
@@ -2206,16 +2361,42 @@
 
     function renderSidebarTags() {
       const container = document.getElementById('tagCloudContainer');
-      const tagCounts = Object.create(null);
+      updateSidebarTagSortButtonsUI();
+
+      const tagStats = Object.create(null);
       quotes.forEach(q => {
+        const time = Math.max(q.updatedAt || 0, q.createdAt || 0);
         if (Array.isArray(q.tags)) {
           q.tags.forEach(t => {
-            if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
+            if (t && typeof t === 'string' && t.trim()) {
+              const clean = t.trim().replace(/^#/, '');
+              if (clean) {
+                if (!tagStats[clean]) {
+                  tagStats[clean] = { name: clean, count: 0, recentTime: 0 };
+                }
+                tagStats[clean].count++;
+                if (time > tagStats[clean].recentTime) {
+                  tagStats[clean].recentTime = time;
+                }
+              }
+            }
           });
         }
       });
 
-      const tags = Object.entries(tagCounts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+      const tags = Object.values(tagStats).sort((a, b) => {
+        if (sidebarTagSort === 'count') {
+          if (b.count !== a.count) return b.count - a.count;
+          return a.name.localeCompare(b.name, 'ko');
+        }
+        if (sidebarTagSort === 'recent') {
+          if (b.recentTime !== a.recentTime) return b.recentTime - a.recentTime;
+          if (b.count !== a.count) return b.count - a.count;
+          return a.name.localeCompare(b.name, 'ko');
+        }
+        return a.name.localeCompare(b.name, 'ko');
+      });
+
       const tagBadge = document.getElementById('sidebarTagCountBadge');
       if (tagBadge) {
         tagBadge.textContent = tags.length;
@@ -2950,7 +3131,8 @@
       const select = document.getElementById('modalSeriesPickerSelect');
       if (select) {
         let opts = `<option value="">▼ 시리즈 목록에서 선택...</option>`;
-        seriesList.forEach(s => {
+        const sortedSeriesForPicker = [...seriesList].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+        sortedSeriesForPicker.forEach(s => {
           const isSelected = editorSeries.includes(s.name);
           opts += `<option value="${escapeHtml(s.name)}" ${isSelected ? 'disabled class="text-slate-300"' : ''}>
             ${isSelected ? '✓ ' : '  '}${escapeHtml(s.name)}${isSelected ? ' (선택됨)' : ''}
@@ -3610,20 +3792,51 @@
     }
 
     function getAllExistingTags() {
-      const counts = Object.create(null);
+      const stats = Object.create(null);
       quotes.forEach(q => {
+        const time = Math.max(q.updatedAt || 0, q.createdAt || 0);
         if (Array.isArray(q.tags)) {
           q.tags.forEach(t => {
             if (t && typeof t === 'string' && t.trim()) {
               const clean = t.trim().replace(/^#/, '');
-              if (clean) counts[clean] = (counts[clean] || 0) + 1;
+              if (clean) {
+                if (!stats[clean]) {
+                  stats[clean] = { tag: clean, count: 0, recentTime: 0 };
+                }
+                stats[clean].count++;
+                if (time > stats[clean].recentTime) {
+                  stats[clean].recentTime = time;
+                }
+              }
             }
           });
         }
       });
-      return Object.entries(counts)
-        .map(([tag, count]) => ({ tag, count }))
-        .sort((a, b) => a.tag.localeCompare(b.tag, 'ko'));
+      return Object.values(stats);
+    }
+
+    function updateTagPickerSortButtonsUI() {
+      const btnName = document.getElementById('btnSortPickerName');
+      const btnCount = document.getElementById('btnSortPickerCount');
+      const btnRecent = document.getElementById('btnSortPickerRecent');
+      if (!btnName || !btnCount || !btnRecent) return;
+
+      const activeClass = 'bg-white text-slate-800 font-bold shadow-2xs border border-slate-300';
+      const inactiveClass = 'text-slate-600 hover:text-slate-800 border border-transparent';
+
+      btnName.className = `px-2 py-0.5 rounded text-[10px] transition-all font-medium ${tagPickerSort === 'name' ? activeClass : inactiveClass}`;
+      btnCount.className = `px-2 py-0.5 rounded text-[10px] transition-all font-medium ${tagPickerSort === 'count' ? activeClass : inactiveClass}`;
+      btnRecent.className = `px-2 py-0.5 rounded text-[10px] transition-all font-medium ${tagPickerSort === 'recent' ? activeClass : inactiveClass}`;
+    }
+
+    function setTagPickerSort(sortType) {
+      if (tagPickerSort === sortType) return;
+      tagPickerSort = sortType;
+      try {
+        localStorage.setItem('ooc_tag_picker_sort', sortType);
+      } catch (e) {}
+      updateTagPickerSortButtonsUI();
+      renderTagPickerList();
     }
 
     let tempPickerTags = new Set();
@@ -3632,6 +3845,7 @@
       tempPickerTags = new Set(editorTags);
       const searchInput = document.getElementById('tagPickerSearchInput');
       if (searchInput) searchInput.value = '';
+      updateTagPickerSortButtonsUI();
       renderTagPickerList();
       document.getElementById('tagPickerModal').classList.remove('hidden');
       lucide.createIcons();
@@ -3678,13 +3892,28 @@
       const countEl = document.getElementById('tagPickerSelectedCount');
       if (countEl) countEl.textContent = `${tempPickerTags.size}개 선택됨`;
 
+      updateTagPickerSortButtonsUI();
+
       if (!container) return;
 
       const query = (document.getElementById('tagPickerSearchInput')?.value || '').trim().toLowerCase();
       const allTags = getAllExistingTags();
-      const filtered = query
+      const rawFiltered = query
         ? allTags.filter(({ tag }) => tag.toLowerCase().includes(query))
         : allTags;
+
+      const filtered = [...rawFiltered].sort((a, b) => {
+        if (tagPickerSort === 'count') {
+          if (b.count !== a.count) return b.count - a.count;
+          return a.tag.localeCompare(b.tag, 'ko');
+        }
+        if (tagPickerSort === 'recent') {
+          if (b.recentTime !== a.recentTime) return b.recentTime - a.recentTime;
+          if (b.count !== a.count) return b.count - a.count;
+          return a.tag.localeCompare(b.tag, 'ko');
+        }
+        return a.tag.localeCompare(b.tag, 'ko');
+      });
 
       if (filtered.length === 0) {
         if (allTags.length === 0) {
