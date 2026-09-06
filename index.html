@@ -228,9 +228,9 @@
             onchange="handleSortChange(this.value)"
             class="bg-slate-50 border border-slate-300 rounded px-2 py-1 text-slate-700 font-medium focus:outline-none focus:border-paint-blue text-xs"
           >
-            <option value="alphabetical" selected>가나다순</option>
+            <option value="alphabetical">가나다순</option>
             <option value="docNumber">시리얼 번호순</option>
-            <option value="newest">최신 등록순</option>
+            <option value="newest" selected>최신 등록순</option>
             <option value="oldest">오래된 순</option>
             <option value="chars-desc">글자수 많은 순</option>
             <option value="chars-asc">글자수 적은 순</option>
@@ -663,7 +663,7 @@
           <div id="relatedPickerBox" class="hidden mt-2 border border-slate-300 rounded bg-white p-2.5 flex flex-col gap-2">
             <div class="relative">
               <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
-              <input id="modalRelatedSearch" type="text" oninput="renderRelatedCandidateList()" placeholder="연결할 문구 검색..." class="w-full text-xs pl-8 pr-2.5 py-1 border border-slate-200 rounded focus:outline-none focus:border-paint-blue" />
+              <input id="modalRelatedSearch" type="text" oninput="handleRelatedSearchInput()" placeholder="연결할 문구 검색..." class="w-full text-xs pl-8 pr-2.5 py-1 border border-slate-200 rounded focus:outline-none focus:border-paint-blue" />
             </div>
             <div id="relatedCandidateList" class="max-h-40 overflow-y-auto flex flex-col gap-1 divide-y divide-slate-100">
               <!-- JS 렌더링 -->
@@ -822,6 +822,17 @@
       </div>
 
       <div class="p-5 sm:p-6 flex flex-col gap-3.5 overflow-y-auto flex-1">
+        <!-- 현재 필터 적용 범위 표시 바 -->
+        <div id="randomFilterScopeBar" class="flex flex-wrap items-center justify-between gap-2 bg-blue-50/70 border border-blue-100 rounded-md px-3 py-2 text-xs text-slate-600">
+          <div class="flex items-center gap-1.5 flex-wrap min-w-0">
+            <span class="text-slate-500 font-medium shrink-0">추천 대상:</span>
+            <div id="randomFilterBadges" class="flex items-center gap-1 flex-wrap text-[11px]">
+              <!-- JS 동적 렌더링 -->
+            </div>
+          </div>
+          <span id="randomPoolCountBadge" class="font-mono text-[11px] font-bold text-paint-blue shrink-0">총 0개 문구 중 추첨</span>
+        </div>
+
         <div id="randomMetaBar" class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 text-xs">
           <div class="flex items-center gap-2">
             <span id="randomDocNumber" class="font-mono text-xs font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">#DOC-0000</span>
@@ -1328,7 +1339,7 @@
       tags: [],
       onlyFavorites: false,
       onlySpicy: false,
-      sortBy: 'alphabetical',
+      sortBy: 'newest',
       viewMode: 'card'
     };
 
@@ -2126,6 +2137,11 @@
       renderQuotesFeed(filteredQuotes);
       renderActiveFilterBadges(filteredQuotes);
 
+      const sortSelect = document.getElementById('selectSort');
+      if (sortSelect && sortSelect.value !== currentFilter.sortBy) {
+        sortSelect.value = currentFilter.sortBy;
+      }
+
       lucide.createIcons();
     }
 
@@ -2516,7 +2532,11 @@
           if (!sList.includes(currentFilter.series)) return false;
         }
         if (currentFilter.tags.length > 0) {
-          const hasAll = currentFilter.tags.every(t => (q.tags || []).includes(t));
+          const quoteTags = (q.tags || []).map(t => typeof t === 'string' ? t.trim().replace(/^#/, '') : '');
+          const hasAll = currentFilter.tags.every(t => {
+            const cleanT = typeof t === 'string' ? t.trim().replace(/^#/, '') : '';
+            return quoteTags.includes(cleanT);
+          });
           if (!hasAll) return false;
         }
         if (query) {
@@ -2541,8 +2561,14 @@
             return quoteCollator.compare(strA, strB);
           }
           case 'docNumber': return a.docNumber - b.docNumber;
-          case 'newest': return b.createdAt - a.createdAt;
-          case 'oldest': return a.createdAt - b.createdAt;
+          case 'newest': {
+            const diff = (b.createdAt || 0) - (a.createdAt || 0);
+            return diff !== 0 ? diff : (b.docNumber - a.docNumber);
+          }
+          case 'oldest': {
+            const diff = (a.createdAt || 0) - (b.createdAt || 0);
+            return diff !== 0 ? diff : (a.docNumber - b.docNumber);
+          }
           case 'chars-desc': return b.charCount - a.charCount;
           case 'chars-asc': return a.charCount - b.charCount;
           default: {
@@ -3025,8 +3051,11 @@
     }
 
     function scrollToQuote(targetId) {
-      resetAllFilters();
-      const targetIndex = getFilteredQuotes().findIndex(quote => quote.id === targetId);
+      let targetIndex = getFilteredQuotes().findIndex(quote => quote.id === targetId);
+      if (targetIndex === -1) {
+        resetAllFilters();
+        targetIndex = getFilteredQuotes().findIndex(quote => quote.id === targetId);
+      }
       if (targetIndex >= displayedCount) {
         displayedCount = Math.ceil((targetIndex + 1) / PAGE_CHUNK) * PAGE_CHUNK;
         render();
@@ -3237,6 +3266,9 @@
       updateRestoreButtonUI();
 
       resetModalScrollTop();
+      relatedCandidateLimit = 100;
+      const relatedSearchEl1 = document.getElementById('modalRelatedSearch');
+      if (relatedSearchEl1) relatedSearchEl1.value = '';
       document.getElementById('quoteModal').classList.remove('hidden');
       requestAnimationFrame(() => resetModalScrollTop());
       lucide.createIcons();
@@ -3272,6 +3304,9 @@
       updateRestoreButtonUI();
 
       resetModalScrollTop();
+      relatedCandidateLimit = 100;
+      const relatedSearchEl2 = document.getElementById('modalRelatedSearch');
+      if (relatedSearchEl2) relatedSearchEl2.value = '';
       document.getElementById('quoteModal').classList.remove('hidden');
       requestAnimationFrame(() => resetModalScrollTop());
       lucide.createIcons();
@@ -3283,6 +3318,9 @@
       document.getElementById('quoteModal').classList.add('hidden');
       document.getElementById('relatedPickerBox').classList.add('hidden');
       document.getElementById('btnToggleRelatedText').textContent = '문구 선택창 열기';
+      relatedCandidateLimit = 100;
+      const relatedSearchEl3 = document.getElementById('modalRelatedSearch');
+      if (relatedSearchEl3) relatedSearchEl3.value = '';
     }
 
     /* ========== QUOTE DETAIL / READER MODAL ========== */
@@ -3980,31 +4018,55 @@
       lucide.createIcons();
     }
 
+    let relatedCandidateLimit = 100;
+
+    function handleRelatedSearchInput() {
+      relatedCandidateLimit = 100;
+      renderRelatedCandidateList(false);
+    }
+
+    function loadMoreRelatedCandidates() {
+      relatedCandidateLimit += 50;
+      renderRelatedCandidateList(true);
+    }
+
     function toggleRelatedPicker() {
       const box = document.getElementById('relatedPickerBox');
       const btn = document.getElementById('btnToggleRelatedText');
       box.classList.toggle('hidden');
       if (!box.classList.contains('hidden')) {
         btn.textContent = '목록 접기';
-        renderRelatedCandidateList();
+        relatedCandidateLimit = 100;
+        const searchInput = document.getElementById('modalRelatedSearch');
+        if (searchInput) searchInput.value = '';
+        renderRelatedCandidateList(false);
       } else {
         btn.textContent = '문구 선택창 열기';
       }
     }
 
-    function renderRelatedCandidateList() {
+    function renderRelatedCandidateList(preserveScroll = true) {
       const list = document.getElementById('relatedCandidateList');
-      const term = (document.getElementById('modalRelatedSearch').value || '').toLowerCase();
-      const currentId = document.getElementById('editQuoteId').value;
+      if (!list) return;
+      const prevScrollTop = preserveScroll ? list.scrollTop : 0;
+      const term = (document.getElementById('modalRelatedSearch')?.value || '').toLowerCase().trim();
+      const currentId = document.getElementById('editQuoteId')?.value || '';
+      const filtered = quotes.filter(q => q.id !== currentId && (!term || (q.title && q.title.toLowerCase().includes(term)) || q.content.toLowerCase().includes(term) || (Array.isArray(q.series) ? q.series.join(' ') : q.series).toLowerCase().includes(term) || String(q.docNumber).includes(term)));
 
-      const candidates = quotes.filter(q => q.id !== currentId && (!term || (q.title && q.title.toLowerCase().includes(term)) || q.content.toLowerCase().includes(term) || (Array.isArray(q.series) ? q.series.join(' ') : q.series).toLowerCase().includes(term) || String(q.docNumber).includes(term))).slice(0, 100);
+      // 최신 등록 문구 우선 정렬 (createdAt 내림차순, 동일 시 docNumber 내림차순)
+      filtered.sort((a, b) => {
+        const diff = (b.createdAt || 0) - (a.createdAt || 0);
+        return diff !== 0 ? diff : (b.docNumber - a.docNumber);
+      });
+
+      const candidates = filtered.slice(0, relatedCandidateLimit);
 
       if (candidates.length === 0) {
         list.innerHTML = `<div class="text-center text-xs text-slate-400 py-3">선택 가능한 문구가 없습니다.</div>`;
         return;
       }
 
-      list.innerHTML = candidates.map(q => {
+      const itemsHtml = candidates.map(q => {
         const isChecked = editorRelated.includes(q.id);
         const sDisplay = Array.isArray(q.series) ? q.series.join(', ') : q.series;
         return `
@@ -4020,6 +4082,36 @@
           </label>
         `;
       }).join('');
+
+      let footerHtml = '';
+      if (filtered.length > candidates.length) {
+        const remaining = filtered.length - candidates.length;
+        const nextBatch = Math.min(50, remaining);
+        footerHtml = `
+          <div class="pt-2 pb-1 text-center">
+            <button
+              type="button"
+              onclick="loadMoreRelatedCandidates()"
+              class="w-full py-1.5 px-3 text-xs font-semibold text-paint-blue bg-blue-50/80 hover:bg-blue-100/80 border border-blue-200 rounded transition-all flex items-center justify-center gap-1.5 active:scale-[0.99] cursor-pointer"
+            >
+              <i data-lucide="chevrons-down" class="w-3.5 h-3.5"></i>
+              <span>과거 문구 더 보기 (+${nextBatch}개 · 현재 ${candidates.length} / 총 ${filtered.length}개)</span>
+            </button>
+          </div>
+        `;
+      } else if (filtered.length > 100) {
+        footerHtml = `
+          <div class="py-2 text-center text-[11px] text-slate-400 font-mono">
+            모든 문구를 불러왔습니다 (총 ${filtered.length}개)
+          </div>
+        `;
+      }
+
+      list.innerHTML = itemsHtml + footerHtml;
+      if (preserveScroll && prevScrollTop > 0) {
+        list.scrollTop = prevScrollTop;
+      }
+      lucide.createIcons();
     }
 
     function toggleEditorRelated(id, checked) {
@@ -4144,12 +4236,56 @@
     }
 
     /* ========== RANDOM SPOTLIGHT ========== */
+    function updateRandomFilterScopeUI(candidates) {
+      const badgesContainer = document.getElementById('randomFilterBadges');
+      const countBadge = document.getElementById('randomPoolCountBadge');
+      if (!badgesContainer || !countBadge) return;
+
+      countBadge.textContent = `총 ${candidates.length}개 문구 중 추첨`;
+
+      const badges = [];
+
+      // 1. 보관함 필터 (즐겨찾기, 빨간맛)
+      if (currentFilter.onlyFavorites && currentFilter.onlySpicy) {
+        badges.push('<span class="inline-flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300 rounded px-1.5 py-0.5 font-semibold">⭐ 즐겨찾기</span>');
+        badges.push('<span class="inline-flex items-center gap-1 bg-rose-100 text-rose-900 border border-rose-300 rounded px-1.5 py-0.5 font-semibold">❤️ 빨간맛</span>');
+      } else if (currentFilter.onlyFavorites) {
+        badges.push('<span class="inline-flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300 rounded px-1.5 py-0.5 font-semibold">⭐ 즐겨찾기</span>');
+      } else if (currentFilter.onlySpicy) {
+        badges.push('<span class="inline-flex items-center gap-1 bg-rose-100 text-rose-900 border border-rose-300 rounded px-1.5 py-0.5 font-semibold">❤️ 빨간맛</span>');
+      }
+
+      // 2. 시리즈 필터
+      if (currentFilter.series) {
+        badges.push(`<span class="inline-flex items-center gap-1 bg-blue-100 text-blue-900 border border-blue-300 rounded px-1.5 py-0.5 font-semibold">📁 ${escapeHtml(currentFilter.series)}</span>`);
+      }
+
+      // 3. 태그 필터
+      if (Array.isArray(currentFilter.tags) && currentFilter.tags.length > 0) {
+        currentFilter.tags.forEach(t => {
+          badges.push(`<span class="inline-flex items-center gap-0.5 bg-slate-200 text-slate-800 border border-slate-300 rounded px-1.5 py-0.5 font-semibold">#${escapeHtml(t)}</span>`);
+        });
+      }
+
+      // 4. 검색어 필터
+      if (currentFilter.search && currentFilter.search.trim()) {
+        badges.push(`<span class="inline-flex items-center gap-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded px-1.5 py-0.5 font-semibold">🔍 "${escapeHtml(currentFilter.search.trim())}"</span>`);
+      }
+
+      if (badges.length === 0) {
+        badges.push('<span class="bg-slate-100 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 font-medium">전체 보관함</span>');
+      }
+
+      badgesContainer.innerHTML = badges.join('');
+    }
+
     function openRandomModal() {
       const candidates = getFilteredQuotes();
       if (candidates.length === 0) {
-        showToast('추천할 문구가 없습니다. 필터를 확인해주세요.', 'error');
+        showToast('현재 선택한 필터 조건에 해당하는 문구가 없습니다.', 'error');
         return;
       }
+      updateRandomFilterScopeUI(candidates);
       document.getElementById('randomModal').classList.remove('hidden');
       rollRandomQuote();
     }
@@ -4161,18 +4297,26 @@
     function rollRandomQuote() {
       const candidates = getFilteredQuotes();
       if (candidates.length === 0) return;
+      updateRandomFilterScopeUI(candidates);
 
       const diceIcon = document.getElementById('randomDiceIcon');
-      diceIcon.classList.add('animate-spin');
+      if (diceIcon) diceIcon.classList.add('animate-spin');
+
+      // 후보가 2개 이상일 때 이전 추천 문구와 연속 중복 추첨 방지
+      let pool = candidates;
+      if (candidates.length > 1 && currentRandomQuote) {
+        const filteredPool = candidates.filter(q => q.id !== currentRandomQuote.id);
+        if (filteredPool.length > 0) pool = filteredPool;
+      }
 
       let count = 0;
       const interval = setInterval(() => {
-        const idx = Math.floor(Math.random() * candidates.length);
-        displayRandomQuote(candidates[idx]);
+        const idx = Math.floor(Math.random() * pool.length);
+        displayRandomQuote(pool[idx]);
         count++;
         if (count >= 8) {
           clearInterval(interval);
-          diceIcon.classList.remove('animate-spin');
+          if (diceIcon) diceIcon.classList.remove('animate-spin');
         }
       }, 50);
     }
@@ -4182,7 +4326,7 @@
       document.getElementById('randomDocNumber').textContent = formatDocNumber(q.docNumber);
       const sList = normalizeQuoteSeries(q.series);
       document.getElementById('randomSeriesBadge').textContent = sList.join(', ');
-      document.getElementById('randomCharCount').textContent = `${q.charCount}자`;
+      document.getElementById('randomCharCount').textContent = `${q.charCount ?? calculateCharCount(q.content || '').total}자`;
 
       const { charVal, userVal } = getActiveMacroValues();
       const htmlContent = macroSettings.previewReplaced
