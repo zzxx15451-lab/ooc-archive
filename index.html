@@ -1850,18 +1850,22 @@
       return structuredClone({ quotes, series: seriesList, settings: macroSettings, deletedQuotes, deletedSeries });
     }
 
-    function captureSaveSnapshot() {
+    let latestCapturedSnapshot = null;
+    function captureSaveSnapshot(changedIds = null) {
       // Reuse committed immutable records; clone only new/changed records.
-      const captureRecords = (items, saved = []) => {
+      const baseline = latestCapturedSnapshot || savedSnapshot;
+      const dirty = changedIds === null ? null : new Set(changedIds);
+      const captureRecords = (items, saved = [], changed = null) => {
         const previous = new Map(saved.map(item => [item.id, item]));
         return items.map(item => {
           const old = previous.get(item.id);
+          if (old && changed && !changed.has(item.id)) return old;
           return old && sameStoredValue(old, item) ? old : structuredClone(item);
         });
       };
       return {
-        quotes: captureRecords(quotes, savedSnapshot?.quotes),
-        series: captureRecords(seriesList, savedSnapshot?.series),
+        quotes: captureRecords(quotes, baseline?.quotes, dirty),
+        series: captureRecords(seriesList, baseline?.series),
         settings: structuredClone(macroSettings),
         deletedQuotes: sameStoredValue(deletedQuotes, savedSnapshot?.deletedQuotes) ? savedSnapshot.deletedQuotes : structuredClone(deletedQuotes),
         deletedSeries: sameStoredValue(deletedSeries, savedSnapshot?.deletedSeries) ? savedSnapshot.deletedSeries : structuredClone(deletedSeries)
@@ -1869,6 +1873,8 @@
     }
 
     function applyArchiveState(state) {
+      invalidateArchiveCaches();
+      latestCapturedSnapshot = null;
       quotes = state.quotes;
       seriesList = state.series;
       macroSettings = state.settings;
@@ -1877,9 +1883,11 @@
       quoteById = new Map(quotes.map(q => [q.id, q]));
     }
 
-    function saveState(skipGithub = false) {
+    function saveState(skipGithub = false, changedIds = null) {
+      invalidateArchiveCaches(changedIds);
       const revision = ++localSaveRevision;
-      const snapshot = captureSaveSnapshot();
+      const snapshot = captureSaveSnapshot(changedIds);
+      latestCapturedSnapshot = snapshot;
       const operation = localSaveQueue.then(async () => {
         try {
           if (!stateReady) throw new Error('Storage is not ready');
@@ -2063,16 +2071,16 @@
       if (!response.ok) throw new Error('GitHub HTTP ' + response.status);
       const metadata = await response.json();
       if (!metadata.sha) throw new Error('GitHub file SHA missing');
-      let parsed;
-      if (metadata.encoding === 'base64' && metadata.content) parsed = JSON.parse(base64ToUtf8(metadata.content));
+      let input;
+      if (metadata.encoding === 'base64' && metadata.content) input = { text: metadata.content, base64: true };
       else {
         const raw = await fetch(url + '?ref=' + encodeURIComponent(config.branch), {
           headers: { ...headers, Accept: 'application/vnd.github.raw+json' }, cache: 'no-store'
         });
         if (!raw.ok) throw new Error('GitHub HTTP ' + raw.status);
-        parsed = JSON.parse(await raw.text());
+        input = { text: await raw.text(), base64: false };
       }
-      return { url, sha: metadata.sha, incoming: parseArchivePayload(parsed) };
+      return { url, sha: metadata.sha, incoming: await runArchiveTask('decode', input) };
     }
 
     function mergeRemoteArchive(incoming) {
@@ -2103,27 +2111,47 @@
       try {
         for (let attempt = 0; attempt < 3; attempt++) {
           const remote = await readGithubArchive(config);
-          mergeRemoteArchive(remote.incoming);
-          if (!await saveState(true)) return false;
-          render();
+          if (remote.incoming) {
+            // Never apply a worker result computed before a more recent local edit.
+            for (;;) {
+              await localSaveQueue;
+              const revision = archiveRevision, macroVersion = JSON.stringify(macroSettings);
+              const merged = await runArchiveTask('merge', {
+                local: { quotes, series: seriesList, settings: macroSettings, deletedQuotes, deletedSeries },
+                incoming: remote.incoming
+              });
+              if (revision !== archiveRevision || macroVersion !== JSON.stringify(macroSettings)) continue;
+              applyArchiveState(merged); applyMacroSettingsToUI();
+              if (!await saveState(true)) return false;
+              render();
+              break;
+            }
+          }
+          await localSaveQueue;
+          if (!savedSnapshot) return false;
           if (!push && !config.autoSync) {
             if (!isSilent) showToast('깃허브 데이터를 불러왔습니다.');
             return true;
           }
-          const persisted = structuredClone(savedSnapshot);
-          if (remote.incoming && archiveFingerprint(persisted) === archiveFingerprint(remote.incoming)) {
-            if (!isSilent) showToast('깃허브 동기화가 완료되었습니다.');
-            return true;
+          let encoded, encodedRevision, macroVersion;
+          for (;;) {
+            await localSaveQueue;
+            if (!sameStoredValue(savedSnapshot.settings, macroSettings)) {
+              if (!await saveMacroSettings()) return false;
+            }
+            encodedRevision = localSaveRevision; macroVersion = JSON.stringify(macroSettings);
+            encoded = await runArchiveTask('encode', { state: savedSnapshot, incoming: remote.incoming, sha: remote.sha, branch: config.branch });
+            if (encodedRevision === localSaveRevision && macroVersion === JSON.stringify(macroSettings)) break;
           }
-          const payload = { version: 2, updatedAt: new Date().toISOString(), ...persisted };
-          const body = { message: 'Update OOC Archive', content: utf8ToBase64(JSON.stringify(payload)), branch: config.branch };
-          if (remote.sha) body.sha = remote.sha;
-          const response = await fetch(remote.url, {
-            method: 'PUT', headers: { Authorization: 'Bearer ' + config.token,
-              Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-          });
-          if (response.status === 409 || response.status === 422) continue;
-          if (!response.ok) throw new Error('GitHub HTTP ' + response.status);
+          if (!encoded.unchanged) {
+            const response = await fetch(remote.url, {
+              method: 'PUT', headers: { Authorization: 'Bearer ' + config.token,
+                Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body: encoded.body
+            });
+            if (response.status === 409 || response.status === 422) continue;
+            if (!response.ok) throw new Error('GitHub HTTP ' + response.status);
+          }
+          if (encodedRevision !== localSaveRevision || macroVersion !== JSON.stringify(macroSettings)) scheduleGithubSync();
           if (!isSilent) showToast('깃허브 동기화가 완료되었습니다.');
           return true;
         }
@@ -2135,8 +2163,16 @@
       }
     }
 
+    let automaticSync = null;
+    let automaticSyncAgain = false;
     function syncToGithub(isSilent = false) {
-      return queueGithub(() => performGithubSync(true, isSilent));
+      if (!isSilent) return queueGithub(() => performGithubSync(true, false));
+      if (automaticSync) { automaticSyncAgain = true; return automaticSync; }
+      automaticSync = queueGithub(() => performGithubSync(true, true)).finally(() => {
+        automaticSync = null;
+        if (automaticSyncAgain) { automaticSyncAgain = false; scheduleGithubSync(); }
+      });
+      return automaticSync;
     }
 
     function syncFromGithub(isSilent = false) {
@@ -2145,6 +2181,269 @@
 
     function manualSyncFromGithub() {
       syncFromGithub(false);
+    }
+
+    let archiveWorker = null;
+    let archiveWorkerUnavailable = false;
+    let archiveJobSequence = 0;
+    const archiveJobs = new Map();
+
+    async function mapArchiveChunks(items, mapper, pause) {
+      const result = [];
+      for (let i = 0; i < items.length; i++) {
+        result.push(mapper(items[i], i));
+        if ((i + 1) % 200 === 0) await pause();
+      }
+      return result;
+    }
+
+    async function reconcileRelationsAsync(records, pause) {
+      const map = new Map(records.map(q => [q.id, q]));
+      const edges = new Map(await mapArchiveChunks(records, q => [q.id, new Set((q.relatedQuoteIds || []).filter(id => id !== q.id && map.has(id)))], pause));
+      await mapArchiveChunks(records, q => {
+        for (const id of [...edges.get(q.id)]) {
+          const other = map.get(id);
+          if (!edges.get(id).has(q.id) && recordTime(other) > recordTime(q)) edges.get(q.id).delete(id);
+          else edges.get(id).add(q.id);
+        }
+      }, pause);
+      await mapArchiveChunks(records, q => { q.relatedQuoteIds = [...edges.get(q.id)]; }, pause);
+    }
+
+    async function normalizeArchiveDataAsync(rawQuotes, rawSeries, rawSettings, pause) {
+      if (!Array.isArray(rawQuotes)) {
+        throw new Error('문구 목록이 배열 형식이 아닙니다.');
+      }
+
+      const quoteIds = new Set();
+      const normalizedQuotes = await mapArchiveChunks(rawQuotes, (rawQuote, index) => {
+        const quote = rawQuote && typeof rawQuote === 'object' ? rawQuote : {};
+        const content = typeof quote.content === 'string' ? quote.content : String(quote.content ?? '');
+        const counts = calculateCharCount(content);
+        const parsedDocNumber = Number(quote.docNumber);
+        const parsedCreatedAt = parseTimestamp(quote.createdAt);
+        const parsedUpdatedAt = parseTimestamp(quote.updatedAt);
+
+        const cleanQuote = { ...quote };
+        delete cleanQuote.originalContent;
+
+        return {
+          ...cleanQuote,
+          id: createUniqueRecordId(quote.id, 'doc-import', index, quoteIds),
+          docNumber: Number.isFinite(parsedDocNumber) && parsedDocNumber > 0 ? parsedDocNumber : index + 1,
+          title: typeof quote.title === 'string' ? quote.title : '',
+          content,
+          contentEn: typeof quote.contentEn === 'string' ? quote.contentEn : '',
+          source: typeof quote.source === 'string' ? quote.source : '',
+          series: normalizeQuoteSeries(quote.series),
+          tags: normalizeStringList(quote.tags),
+          memo: typeof quote.memo === 'string' ? quote.memo : '',
+          relatedQuoteIds: normalizeStringList(quote.relatedQuoteIds),
+          isFavorite: Boolean(quote.isFavorite),
+          isSpicy: Boolean(quote.isSpicy || quote.isRestricted),
+          charCount: counts.total,
+          charCountNoSpace: counts.noSpace,
+          createdAt: Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : 0,
+          updatedAt: Number.isFinite(parsedUpdatedAt)
+            ? parsedUpdatedAt
+            : (Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : 0)
+        };
+      }, pause);
+
+      await reconcileRelationsAsync(normalizedQuotes, pause);
+
+      const seriesIds = new Set();
+      const seriesNames = new Set();
+      const normalizedSeries = (Array.isArray(rawSeries) ? rawSeries : [])
+        .map((rawItem, index) => {
+          const item = rawItem && typeof rawItem === 'object' ? rawItem : {};
+          const name = typeof item.name === 'string' ? item.name.trim() : '';
+          if (!name || name === '기본' || name === '미등록' || seriesNames.has(name)) return null;
+          seriesNames.add(name);
+          return {
+            ...item,
+            id: createUniqueRecordId(item.id, 'series-import', index, seriesIds),
+            name
+          };
+        })
+        .filter(Boolean);
+
+      normalizedQuotes.forEach(quote => {
+        quote.series.forEach(name => {
+          if (name === '미등록' || seriesNames.has(name)) return;
+          seriesNames.add(name);
+          normalizedSeries.push({
+            id: createUniqueRecordId('', 'series-derived', normalizedSeries.length, seriesIds),
+            name
+          });
+        });
+      });
+
+      const settings = rawSettings && typeof rawSettings === 'object' ? rawSettings : {};
+      return {
+        quotes: normalizedQuotes,
+        series: normalizedSeries,
+        settings: {
+          charName: typeof settings.charName === 'string' ? settings.charName : '',
+          userName: typeof settings.userName === 'string' ? settings.userName : '',
+          previewReplaced: typeof settings.previewReplaced === 'boolean' ? settings.previewReplaced : false,
+          updatedAt: parseTimestamp(settings.updatedAt) || 0
+        }
+      };
+    }
+
+    async function mergeArchivePayloadAsync(localQuotes, incomingQuotes, localSeries, incomingSeries,
+      localDeleted = [], incomingDeleted = [], localSeriesDeleted = [], incomingSeriesDeleted = [], pause) {
+      const quoteDeletions = mergeDeletions(localDeleted, incomingDeleted);
+      const seriesDeletions = mergeDeletions(localSeriesDeleted, incomingSeriesDeleted);
+      const deleted = new Map(quoteDeletions.map(item => [item.id, item.updatedAt]));
+      const removedSeries = new Map(seriesDeletions.map(item => [item.id, item.updatedAt]));
+      const map = new Map();
+      await mapArchiveChunks([...(incomingQuotes || []), ...(localQuotes || [])], q => {
+        if (!q?.id || (deleted.has(q.id) && deleted.get(q.id) >= recordTime(q))) return;
+        if (!map.has(q.id) || recordTime(q) > recordTime(map.get(q.id))) map.set(q.id, structuredClone(q));
+      }, pause);
+      const series = new Map();
+      [...(incomingSeries || []), ...(localSeries || [])].forEach(item => {
+        if (!item?.name || (removedSeries.has(item.name) && removedSeries.get(item.name) >= recordTime(item))) return;
+        if (!series.has(item.name) || recordTime(item) > recordTime(series.get(item.name))) series.set(item.name, { ...item });
+      });
+      await mapArchiveChunks([...map.values()], q => {
+        q.series = normalizeQuoteSeries(normalizeQuoteSeries(q.series).filter(name => !removedSeries.has(name) || series.has(name)));
+      }, pause);
+      const result = [...map.values()];
+      await reconcileRelationsAsync(result, pause);
+      return { quotes: result, series: [...series.values()], deletedQuotes: quoteDeletions,
+        deletedSeries: seriesDeletions };
+    }
+
+    async function archiveStatesEqualAsync(left, right, pause) {
+      if (!right) return false;
+      const defaults = { charName: '', userName: '', previewReplaced: false, updatedAt: 0 };
+      if (!sameStoredValue({ ...defaults, ...left.settings }, { ...defaults, ...right.settings })) return false;
+      for (const [field, key] of [['quotes', 'id'], ['series', 'name'], ['deletedQuotes', 'id'], ['deletedSeries', 'id']]) {
+        const a = [...(left[field] || [])], b = [...(right[field] || [])];
+        if (a.length !== b.length) return false;
+        const compare = (x, y) => x[key] < y[key] ? -1 : x[key] > y[key] ? 1 : 0;
+        a.sort(compare); b.sort(compare);
+        for (let i = 0; i < a.length; i++) {
+          if (!sameStoredValue(a[i], b[i])) return false;
+          if ((i + 1) % 200 === 0) await pause();
+        }
+      }
+      return true;
+    }
+
+    async function serializeArchiveAsync(state, pause) {
+      const pieces = ['{"version":2,"updatedAt":' + JSON.stringify(new Date().toISOString())];
+      for (const key of ['quotes', 'series', 'settings', 'deletedQuotes', 'deletedSeries']) {
+        const value = state[key] || (key === 'settings' ? {} : []);
+        pieces.push(',' + JSON.stringify(key) + ':');
+        if (Array.isArray(value)) {
+          pieces.push('[');
+          for (let i = 0; i < value.length; i++) {
+            if (i) pieces.push(',');
+            pieces.push(JSON.stringify(value[i]));
+            if ((i + 1) % 200 === 0) await pause();
+          }
+          pieces.push(']');
+        } else pieces.push(JSON.stringify(value));
+        await pause();
+      }
+      pieces.push('}');
+      return pieces.join('');
+    }
+
+    async function base64ArchiveAsync(text, pause) {
+      const encoder = new TextEncoder(), pieces = [];
+      let carry = new Uint8Array(0), count = 0;
+      for (let start = 0; start < text.length;) {
+        let end = Math.min(text.length, start + 16384);
+        const last = text.charCodeAt(end - 1);
+        if (end < text.length && last >= 0xD800 && last <= 0xDBFF) end--;
+        const chunk = encoder.encode(text.slice(start, end));
+        const bytes = new Uint8Array(carry.length + chunk.length);
+        bytes.set(carry); bytes.set(chunk, carry.length);
+        const length = bytes.length - bytes.length % 3;
+        let binary = '';
+        for (let i = 0; i < length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + 8192, length)));
+        pieces.push(btoa(binary)); carry = bytes.slice(length); start = end;
+        if (++count % 8 === 0) await pause();
+      }
+      if (carry.length) pieces.push(btoa(String.fromCharCode(...carry)));
+      return pieces.join('');
+    }
+
+    async function computeArchiveTask(type, payload, pause = async () => {}) {
+      if (type === 'decode') {
+        const text = payload.base64 ? base64ToUtf8(payload.text) : payload.text;
+        await pause();
+        const parsed = JSON.parse(text);
+        await pause();
+        if (!Array.isArray(parsed) && (!parsed || !Array.isArray(parsed.quotes))) throw new Error('백업 파일에 올바른 문구 목록이 없습니다.');
+        const normalized = await normalizeArchiveDataAsync(Array.isArray(parsed) ? parsed : parsed.quotes, parsed.series, parsed.settings, pause);
+        return { ...normalized, deletedQuotes: normalizeDeletions(parsed.deletedQuotes), deletedSeries: normalizeDeletions(parsed.deletedSeries) };
+      }
+      if (type === 'merge') {
+        const { local, incoming } = payload;
+        const merged = await mergeArchivePayloadAsync(local.quotes, incoming.quotes, local.series, incoming.series,
+          local.deletedQuotes, incoming.deletedQuotes, local.deletedSeries, incoming.deletedSeries, pause);
+        await pause();
+        const settings = recordTime(incoming.settings || {}) > recordTime(local.settings) ? incoming.settings : local.settings;
+        return { ...merged, settings };
+      }
+      if (type === 'encode') {
+        const { state, incoming } = payload;
+        if (await archiveStatesEqualAsync(state, incoming, pause)) return { unchanged: true };
+        const text = await serializeArchiveAsync(state, pause);
+        const content = await base64ArchiveAsync(text, pause);
+        const metadata = { message: 'Update OOC Archive', branch: payload.branch };
+        if (payload.sha) metadata.sha = payload.sha;
+        return { unchanged: false, body: JSON.stringify(metadata).slice(0, -1) + ',"content":"' + content + '"}' };
+      }
+      throw new Error('Unknown archive task');
+    }
+
+    function getArchiveWorker() {
+      if (archiveWorkerUnavailable) return null;
+      if (archiveWorker) return archiveWorker;
+      try {
+        const functions = [computeArchiveTask, mapArchiveChunks, normalizeArchiveDataAsync, reconcileRelationsAsync,
+          mergeArchivePayloadAsync, archiveStatesEqualAsync, serializeArchiveAsync, base64ArchiveAsync, sameStoredValue, calculateCharCount, parseTimestamp, normalizeStringList,
+          createUniqueRecordId, normalizeArchiveData, normalizeQuoteSeries, normalizeDeletions,
+          mergeDeletions, recordTime, reconcileRelations, mergeArchivePayload, parseArchivePayload,
+          archiveFingerprint, utf8ToBase64, base64ToUtf8];
+        const source = functions.map(fn => fn.toString()).join('\n') + `
+          self.onmessage = async ({ data }) => {
+            try { self.postMessage({ id: data.id, result: await computeArchiveTask(data.type, data.payload) }); }
+            catch (error) { self.postMessage({ id: data.id, error: error.message }); }
+          };`;
+        const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+        try { archiveWorker = new Worker(url); } finally { URL.revokeObjectURL(url); }
+        archiveWorker.onmessage = ({ data }) => {
+          const job = archiveJobs.get(data.id); if (!job) return;
+          archiveJobs.delete(data.id);
+          if (data.error) job.reject(new Error(data.error)); else job.resolve(data.result);
+        };
+        archiveWorker.onerror = event => {
+          event.preventDefault(); archiveWorker.terminate(); archiveWorker = null; archiveWorkerUnavailable = true;
+          const jobs = [...archiveJobs.values()]; archiveJobs.clear();
+          jobs.forEach(job => computeArchiveTask(job.type, job.payload, yieldArchiveTask).then(job.resolve, job.reject));
+        };
+        return archiveWorker;
+      } catch (error) { archiveWorkerUnavailable = true; return null; }
+    }
+
+    function yieldArchiveTask() { return new Promise(resolve => setTimeout(resolve, 0)); }
+    function runArchiveTask(type, payload) {
+      const worker = getArchiveWorker();
+      if (!worker) return computeArchiveTask(type, payload, yieldArchiveTask);
+      return new Promise((resolve, reject) => {
+        const id = ++archiveJobSequence;
+        archiveJobs.set(id, { resolve, reject, type, payload });
+        try { worker.postMessage({ id, type, payload }); }
+        catch (error) { archiveJobs.delete(id); reject(error); }
+      });
     }
 
     /* ========== REPLACER HELPERS ========== */
@@ -2485,7 +2784,7 @@
         </button>
       `;
       container.appendChild(toast);
-      lucide.createIcons();
+      renderIcons();
 
       setTimeout(() => {
         toast.style.opacity = '0';
@@ -2518,6 +2817,76 @@
         .replace(/&/g, '\\x26');
     }
 
+    // Lucide 0.475 scans the whole document, including previously rendered SVGs.
+    // Mark only new placeholders so opening a dialog never rebuilds the feed icons.
+    function renderIcons(root = document) {
+      const placeholders = root.querySelectorAll('i[data-lucide]');
+      if (!placeholders.length) return;
+      placeholders.forEach(icon => icon.setAttribute('data-archive-icon', icon.getAttribute('data-lucide')));
+      lucide.createIcons({ nameAttr: 'data-archive-icon' });
+      document.querySelectorAll('[data-archive-icon]').forEach(icon => icon.removeAttribute('data-archive-icon'));
+    }
+
+    function renderQuoteRow(id) {
+      const row = document.getElementById(`quote-${id}`);
+      const quote = getQuoteById(id);
+      if (!row || !quote) return;
+      const template = document.createElement('template');
+      template.innerHTML = (currentFilter.viewMode === 'compact' ? renderCompactQuote(quote) : renderCardQuote(quote)).trim();
+      const next = template.content.firstElementChild;
+      next.dataset.quoteId = id; next.dataset.feedIndex = row.dataset.feedIndex;
+      next.style.marginBottom = row.style.marginBottom;
+      next._archiveMarkup = template.innerHTML;
+      feedResizeObserver.unobserve(row); row.replaceWith(next);
+      feedWindow.nodes.set(id, next); feedResizeObserver.observe(next);
+      renderIcons(next);
+    }
+
+    let archiveRevision = 0;
+    let queryCache = null;
+    let statisticsCache = null;
+    let searchFieldsCache = new WeakMap();
+    let previewRenderTimer = null;
+
+    function invalidateArchiveCaches(ids = null) {
+      archiveRevision++;
+      queryCache = null;
+      statisticsCache = null;
+      if (ids) ids.forEach(id => { const q = getQuoteById(id); if (q) searchFieldsCache.delete(q); });
+      else searchFieldsCache = new WeakMap();
+    }
+
+    function searchableFields(q) {
+      let entry = searchFieldsCache.get(q);
+      if (!entry) {
+        entry = [q.title, q.content, q.contentEn, q.source, q.memo,
+          ...normalizeQuoteSeries(q.series), ...(q.tags || []), String(q.docNumber)]
+          .map(value => String(value || '').toLowerCase());
+        searchFieldsCache.set(q, entry);
+      }
+      return entry;
+    }
+
+    function archiveStatistics() {
+      if (statisticsCache?.source === quotes && statisticsCache.revision === archiveRevision) return statisticsCache;
+      const counts = Object.create(null), tagStats = Object.create(null);
+      let favorites = 0, spicy = 0;
+      for (const q of quotes) {
+        if (q.isFavorite) favorites++;
+        if (q.isSpicy || q.isRestricted) spicy++;
+        for (const name of normalizeQuoteSeries(q.series)) counts[name] = (counts[name] || 0) + 1;
+        for (const raw of q.tags || []) {
+          const name = typeof raw === 'string' ? raw.trim().replace(/^#/, '') : '';
+          if (!name) continue;
+          const stat = tagStats[name] || (tagStats[name] = { name, count: 0, recentTime: 0 });
+          stat.count++;
+          stat.recentTime = Math.max(stat.recentTime, q.updatedAt || 0, q.createdAt || 0);
+        }
+      }
+      statisticsCache = { source: quotes, revision: archiveRevision, counts, tagStats, favorites, spicy };
+      return statisticsCache;
+    }
+
     /* ========== RENDER MAIN FEED ========== */
     function render() {
       quoteById = new Map(quotes.map(quote => [quote.id, quote]));
@@ -2525,10 +2894,10 @@
 
       document.getElementById('headerTotalCount').textContent = quotes.length;
       document.getElementById('badgeTotalCount').textContent = quotes.length;
-      document.getElementById('badgeFavCount').textContent = quotes.filter(q => q.isFavorite).length;
+      document.getElementById('badgeFavCount').textContent = archiveStatistics().favorites;
       const spicyBadgeEl = document.getElementById('badgeSpicyCount');
       if (spicyBadgeEl) {
-        spicyBadgeEl.textContent = quotes.filter(q => q.isSpicy || q.isRestricted).length;
+        spicyBadgeEl.textContent = archiveStatistics().spicy;
       }
       updateSidebarFilterButtons();
 
@@ -2536,14 +2905,14 @@
       renderSidebarTags();
       renderQuotesFeed(filteredQuotes);
       renderActiveFilterBadges(filteredQuotes);
-      updateBatchActionBarUI();
+      updateBatchActionBarUI(filteredQuotes);
 
       const sortSelect = document.getElementById('selectSort');
       if (sortSelect && sortSelect.value !== currentFilter.sortBy) {
         sortSelect.value = currentFilter.sortBy;
       }
 
-      lucide.createIcons();
+      renderIcons();
     }
 
     function getQuoteById(id) {
@@ -2574,6 +2943,10 @@
       if (!sidebarSectionState.hasOwnProperty(type)) return;
       sidebarSectionState[type] = !sidebarSectionState[type];
       applySidebarSectionUI(type);
+      if (!sidebarSectionState[type]) {
+        if (type === 'series') renderSidebarSeries(); else renderSidebarTags();
+        renderIcons();
+      }
       try {
         localStorage.setItem(`ooc_sidebar_${type}_collapsed`, sidebarSectionState[type] ? '1' : '0');
       } catch (e) {}
@@ -2600,7 +2973,7 @@
           chevronEl.classList.remove('-rotate-90');
         }
       }
-      lucide.createIcons();
+      renderIcons();
     }
 
     /* ========== SORTING STATE (SERIES, TAGS, TAG PICKER) ========== */
@@ -2697,13 +3070,11 @@
       }
       updateSidebarSeriesSortButtonsUI();
 
-      const counts = Object.create(null);
-      quotes.forEach(q => {
-        const sList = normalizeQuoteSeries(q.series);
-        sList.forEach(s => {
-          if (s) counts[s] = (counts[s] || 0) + 1;
-        });
-      });
+      const counts = archiveStatistics().counts;
+      if (sidebarSectionState.series) return;
+      const renderKey = JSON.stringify([archiveRevision, sidebarSeriesSort, currentFilter.series, currentFilter.excludeSeries]);
+      if (container._archiveSource === quotes && container._archiveSeries === seriesList && container._archiveKey === renderKey) return;
+      container._archiveSource = quotes; container._archiveSeries = seriesList; container._archiveKey = renderKey;
 
       const sortedSeries = [...seriesList].sort((a, b) => {
         if (sidebarSeriesSort === 'count') {
@@ -2812,26 +3183,12 @@
       const container = document.getElementById('tagCloudContainer');
       updateSidebarTagSortButtonsUI();
 
-      const tagStats = Object.create(null);
-      quotes.forEach(q => {
-        const time = Math.max(q.updatedAt || 0, q.createdAt || 0);
-        if (Array.isArray(q.tags)) {
-          q.tags.forEach(t => {
-            if (t && typeof t === 'string' && t.trim()) {
-              const clean = t.trim().replace(/^#/, '');
-              if (clean) {
-                if (!tagStats[clean]) {
-                  tagStats[clean] = { name: clean, count: 0, recentTime: 0 };
-                }
-                tagStats[clean].count++;
-                if (time > tagStats[clean].recentTime) {
-                  tagStats[clean].recentTime = time;
-                }
-              }
-            }
-          });
-        }
-      });
+      const tagStats = archiveStatistics().tagStats;
+      document.getElementById('sidebarTagCountBadge').textContent = Object.keys(tagStats).length;
+      if (sidebarSectionState.tags) return;
+      const renderKey = JSON.stringify([archiveRevision, sidebarTagSort, currentFilter.tags, currentFilter.excludeTags]);
+      if (container._archiveSource === quotes && container._archiveKey === renderKey) return;
+      container._archiveSource = quotes; container._archiveKey = renderKey;
 
       const tags = Object.values(tagStats).sort((a, b) => {
         if (sidebarTagSort === 'count') {
@@ -3013,7 +3370,10 @@
 
     function getFilteredQuotes() {
       const query = currentFilter.search.toLowerCase().trim();
-      return quotes.filter(q => {
+      const { viewMode, ...filter } = currentFilter;
+      const key = JSON.stringify({ ...filter, search: query });
+      if (queryCache?.source === quotes && queryCache.revision === archiveRevision && queryCache.key === key) return queryCache.items;
+      const items = quotes.filter(q => {
         // 1. 보관함 필터 (포함 / 제외)
         if (currentFilter.onlyFavorites && !q.isFavorite) return false;
         if (currentFilter.excludeFavorites && q.isFavorite) return false;
@@ -3049,16 +3409,7 @@
             if (hasAnyExcluded) return false;
           }
         }
-        if (query && !(
-          (q.title || '').toLowerCase().includes(query) ||
-          (q.content || '').toLowerCase().includes(query) ||
-          (q.contentEn || '').toLowerCase().includes(query) ||
-          (q.source || '').toLowerCase().includes(query) ||
-          (q.memo || '').toLowerCase().includes(query) ||
-          (sList || (Array.isArray(q.series) ? q.series : normalizeQuoteSeries(q.series))).some(s => s.toLowerCase().includes(query)) ||
-          (q.tags || []).some(t => t.toLowerCase().includes(query)) ||
-          String(q.docNumber).includes(query)
-        )) return false;
+        if (query && !searchableFields(q).some(value => value.includes(query))) return false;
         return true;
       }).sort((a, b) => {
         switch (currentFilter.sortBy) {
@@ -3085,14 +3436,156 @@
           }
         }
       });
+      queryCache = { source: quotes, revision: archiveRevision, key, items };
+      return items;
     }
 
-    function renderQuotesFeed(filtered = getFilteredQuotes()) {
+    // displayedCount is the logical "loaded" range; DOM contains only a viewport window.
+    const feedWindow = { items: [], nodes: new Map(), heights: new Map(), offsets: [0], mode: '', width: 0, frame: 0, measureFrame: 0, forcedIndex: null };
+    const feedResizeObserver = new ResizeObserver(() => {
+      if (!feedWindow.measureFrame) feedWindow.measureFrame = requestAnimationFrame(measureFeedRows);
+    });
+
+    function feedGap() { return currentFilter.viewMode === 'compact' ? 8 : 16; }
+    function rebuildFeedOffsets() {
+      const estimate = currentFilter.viewMode === 'compact' ? (feedWindow.width < 768 ? 132 : 54) : 400;
+      const offsets = [0], gap = feedGap();
+      for (let i = 0; i < feedWindow.items.length; i++) {
+        const height = feedWindow.heights.get(feedWindow.items[i].id) || estimate;
+        offsets.push(offsets[i] + height + (i < feedWindow.items.length - 1 ? gap : 0));
+      }
+      feedWindow.offsets = offsets;
+    }
+
+    function feedIndexAt(offset) {
+      let low = 0, high = feedWindow.items.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (feedWindow.offsets[middle + 1] <= offset) low = middle + 1; else high = middle;
+      }
+      return Math.min(low, Math.max(0, feedWindow.items.length - 1));
+    }
+
+    function scheduleFeedWindow() {
+      if (!feedWindow.frame) feedWindow.frame = requestAnimationFrame(() => {
+        feedWindow.frame = 0;
+        updateFeedWindow();
+      });
+    }
+
+    function measureFeedRows() {
+      feedWindow.measureFrame = 0;
+      if (!feedWindow.items.length) return;
+      const headerBottom = document.querySelector('header').getBoundingClientRect().bottom;
+      const anchor = [...feedWindow.nodes.values()].find(node => node.getBoundingClientRect().bottom > headerBottom);
+      const anchorTop = anchor?.getBoundingClientRect().top;
+      let changed = false;
+      for (const [id, node] of feedWindow.nodes) {
+        const height = node.getBoundingClientRect().height;
+        if (height > 0 && Math.abs((feedWindow.heights.get(id) || 0) - height) > 0.5) {
+          feedWindow.heights.set(id, height); changed = true;
+        }
+      }
+      if (!changed) return;
+      rebuildFeedOffsets();
+      // Update spacer sizes before measuring the anchor; do not let browser anchoring double-correct.
+      const container = document.getElementById('quotesContainer');
+      const first = container.querySelector('[data-quote-id]');
+      if (first) {
+        const start = Number(first.dataset.feedIndex);
+        const last = [...feedWindow.nodes.values()].at(-1);
+        const end = Number(last.dataset.feedIndex) + 1;
+        container.firstElementChild.style.height = feedWindow.offsets[start] + 'px';
+        container.lastElementChild.style.height = (feedWindow.offsets.at(-1) - feedWindow.offsets[end]) + 'px';
+      }
+      if (anchor?.isConnected && anchorTop < innerHeight && anchorTop < headerBottom + 100) {
+        const delta = anchor.getBoundingClientRect().top - anchorTop;
+        if (Math.abs(delta) > 0.5) window.scrollBy(0, delta);
+      }
+      scheduleFeedWindow();
+    }
+
+    function updateFeedWindow(refresh = false) {
+      if (!feedWindow.items.length) return;
+      const container = document.getElementById('quotesContainer');
+      const width = container.clientWidth;
+      if (feedWindow.width !== width || feedWindow.mode !== currentFilter.viewMode) {
+        feedWindow.width = width; feedWindow.mode = currentFilter.viewMode;
+        feedWindow.heights.clear(); rebuildFeedOffsets(); refresh = true;
+      }
+      const relativeTop = Math.max(0, -container.getBoundingClientRect().top);
+      const center = feedWindow.forcedIndex ?? feedIndexAt(relativeTop);
+      let start = Math.max(0, center - 4);
+      let end = Math.min(feedWindow.items.length, Math.max(center + 8, feedIndexAt(relativeTop + innerHeight * 2) + 4));
+      if (feedWindow.forcedIndex !== null) end = Math.min(feedWindow.items.length, center + 8);
+      end = Math.min(end, start + 100);
+      // Keep a keyboard-focused row mounted while it is just beyond the viewport window.
+      const active = document.activeElement?.closest('#quotesContainer [data-quote-id]');
+      const focusIndex = active ? Number(active.dataset.feedIndex) : -1;
+      if (focusIndex >= 0 && Math.abs(focusIndex - center) < 100) {
+        start = Math.min(start, focusIndex); end = Math.max(end, focusIndex + 1);
+      }
+      const focused = document.activeElement;
+      const next = new Map();
+      const fragment = document.createDocumentFragment();
+      const top = document.createElement('div'); top.setAttribute('aria-hidden', 'true'); top.style.height = feedWindow.offsets[start] + 'px';
+      fragment.append(top);
+      for (let i = start; i < end; i++) {
+        const q = feedWindow.items[i];
+        let node = feedWindow.nodes.get(q.id);
+        if (!node || refresh) {
+          const html = currentFilter.viewMode === 'compact' ? renderCompactQuote(q) : renderCardQuote(q);
+          if (!node || node._archiveMarkup !== html) {
+            const template = document.createElement('template'); template.innerHTML = html.trim();
+            node = template.content.firstElementChild; node._archiveMarkup = html;
+          }
+        }
+        node.dataset.quoteId = q.id; node.dataset.feedIndex = i;
+        node.style.marginBottom = i < feedWindow.items.length - 1 ? feedGap() + 'px' : '0';
+        next.set(q.id, node); fragment.append(node);
+      }
+      const bottom = document.createElement('div'); bottom.setAttribute('aria-hidden', 'true'); bottom.style.height = (feedWindow.offsets.at(-1) - feedWindow.offsets[end]) + 'px';
+      fragment.append(bottom);
+      // Moving retained nodes keeps listeners/state; restore focus if the fragment detached it.
+      feedResizeObserver.disconnect();
+      container.replaceChildren(fragment); feedWindow.nodes = next;
+      if (focused && container.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
+      next.forEach(node => feedResizeObserver.observe(node));
+      renderIcons(container);
+      if (!feedWindow.measureFrame) feedWindow.measureFrame = requestAnimationFrame(measureFeedRows);
+    }
+
+    document.getElementById('quotesContainer').addEventListener('keydown', event => {
+      if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return;
+      const row = event.target.closest('[data-quote-id]');
+      if (!row) return;
+      const controls = [...row.querySelectorAll('button, input, a[href], [tabindex="0"]')]
+        .filter(node => !node.disabled && node.getClientRects().length);
+      const edge = event.shiftKey ? controls[0] : controls.at(-1);
+      if (event.target !== edge) return;
+      const nextIndex = Number(row.dataset.feedIndex) + (event.shiftKey ? -1 : 1);
+      const nextQuote = feedWindow.items[nextIndex];
+      if (!nextQuote || feedWindow.nodes.has(nextQuote.id)) return;
+      event.preventDefault();
+      feedWindow.forcedIndex = nextIndex; updateFeedWindow();
+      const next = feedWindow.nodes.get(nextQuote.id);
+      const nextControls = [...next.querySelectorAll('button, input, a[href], [tabindex="0"]')]
+        .filter(node => !node.disabled && node.getClientRects().length);
+      (event.shiftKey ? nextControls.at(-1) : nextControls[0])?.focus();
+      feedWindow.forcedIndex = null; scheduleFeedWindow();
+    });
+
+    window.addEventListener('scroll', scheduleFeedWindow, { passive: true });
+    window.addEventListener('resize', scheduleFeedWindow, { passive: true });
+
+    function renderQuotesFeed(filtered = getFilteredQuotes(), appendFrom = 0) {
       const container = document.getElementById('quotesContainer');
       const countEl = document.getElementById('filteredCount');
       if (countEl) countEl.textContent = filtered.length;
 
       if (filtered.length === 0) {
+        feedWindow.items = []; feedWindow.nodes.clear(); feedResizeObserver.disconnect();
+        container.style.display = ''; container.style.overflowAnchor = '';
         container.innerHTML = `
           <div class="bg-white border border-paint-border rounded-lg p-12 text-center flex flex-col items-center justify-center gap-3 shadow-sm">
             <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
@@ -3110,16 +3603,13 @@
         return;
       }
 
-      // 대용량 지연 렌더링 (현재 표시 분량만 슬라이스)
-      const visibleQuotes = filtered.slice(0, displayedCount);
-
-      if (currentFilter.viewMode === 'compact') {
-        container.className = 'flex flex-col gap-2';
-        container.innerHTML = visibleQuotes.map(q => renderCompactQuote(q)).join('');
-      } else {
-        container.className = 'flex flex-col gap-4';
-        container.innerHTML = visibleQuotes.map(q => renderCardQuote(q)).join('');
-      }
+      const nextItems = filtered.slice(0, displayedCount);
+      const validIds = new Set(nextItems.map(q => q.id));
+      for (const id of feedWindow.heights.keys()) if (!validIds.has(id)) feedWindow.heights.delete(id);
+      feedWindow.items = nextItems;
+      container.style.display = 'block'; container.style.overflowAnchor = 'none';
+      rebuildFeedOffsets();
+      updateFeedWindow(true);
 
       // 더 보기 버튼 제어
       const loadMoreSec = document.getElementById('loadMoreSection');
@@ -3133,15 +3623,18 @@
     }
 
     function loadMoreQuotes() {
+      const filtered = getFilteredQuotes();
+      const previousCount = Math.min(displayedCount, filtered.length);
       displayedCount += PAGE_CHUNK;
-      renderQuotesFeed();
-      lucide.createIcons();
+      renderQuotesFeed(filtered, previousCount);
+      updateBatchActionBarUI(filtered);
+      renderIcons(document.getElementById('quotesContainer'));
     }
 
     function toggleCardQuoteLang(id) {
       const cur = cardLangState.get(id) || 'ko';
       cardLangState.set(id, cur === 'ko' ? 'en' : 'ko');
-      render();
+      renderQuoteRow(id);
     }
 
     function renderCompactQuote(q) {
@@ -3385,10 +3878,26 @@
       macroSettings.userName = document.getElementById('inputUserName').value.trim();
       clearTimeout(macroSaveTimer);
       macroSaveTimer = setTimeout(() => { saveMacroSettings(); }, 250);
+      clearTimeout(previewRenderTimer);
       if (macroSettings.previewReplaced) {
-        renderQuotesFeed();
-        lucide.createIcons();
+        previewRenderTimer = setTimeout(() => { refreshVisiblePreview(); }, 120);
       }
+    }
+
+    function refreshVisiblePreview() {
+      const { charVal, userVal } = getActiveMacroValues();
+      for (const node of document.querySelectorAll('#quotesContainer [data-quote-id]')) {
+        const q = getQuoteById(node.dataset.quoteId);
+        if (!q) continue;
+        const content = cardLangState.get(q.id) === 'en' && q.contentEn ? q.contentEn : q.content;
+        const compact = currentFilter.viewMode === 'compact';
+        const body = node.querySelector(compact ? '.compact-main > p' : '.line-clamp-6');
+        if (!body) continue;
+        if (compact) body.textContent = (macroSettings.previewReplaced ? replaceMacros(content, charVal, userVal) : content).replace(/\n/g, ' ');
+        else body.innerHTML = macroSettings.previewReplaced ? formatReplacedHighlights(content, charVal, userVal) : formatMacroHighlights(content);
+        node._archiveMarkup = null;
+      }
+      scheduleFeedWindow();
     }
 
     function togglePreview() {
@@ -3399,8 +3908,8 @@
       updatePreviewToggleUI();
       clearTimeout(macroSaveTimer);
       saveMacroSettings();
-      renderQuotesFeed();
-      lucide.createIcons();
+      clearTimeout(previewRenderTimer);
+      refreshVisiblePreview();
     }
 
     function updatePreviewToggleUI() {
@@ -3412,7 +3921,7 @@
         btn.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded font-medium text-xs transition-all border bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200';
         btn.innerHTML = `<i data-lucide="toggle-left" class="w-4 h-4 text-slate-500"></i><span>치환 미리보기 OFF</span>`;
       }
-      lucide.createIcons();
+      renderIcons();
     }
 
     // 10,000개 대용량 검색 대비 디바운스 처리
@@ -3651,8 +4160,13 @@
       if (q) {
         q.isFavorite = !q.isFavorite;
         q.updatedAt = Date.now();
-        if (!await saveState()) return;
-        render();
+        if (!await saveState(false, [id])) return;
+        if (currentFilter.onlyFavorites || currentFilter.excludeFavorites) {
+          render();
+        } else {
+          renderQuoteRow(id);
+          document.getElementById('badgeFavCount').textContent = quotes.filter(item => item.isFavorite).length;
+        }
       }
     }
 
@@ -3676,6 +4190,7 @@
       const q = getQuoteById(id);
       if (!q) return;
       if (confirm(`${formatDocNumber(q.docNumber)} 문구를 삭제하시겠습니까?`)) {
+        const changedIds = [id, ...quotes.filter(q => (q.relatedQuoteIds || []).includes(id)).map(q => q.id)];
         selectedQuoteIds.delete(id);
         deletedQuotes = mergeDeletions(deletedQuotes, [{ id, updatedAt: Date.now() }]);
         quotes = quotes.filter(item => item.id !== id);
@@ -3684,34 +4199,34 @@
             item.relatedQuoteIds = item.relatedQuoteIds.filter(relatedId => relatedId !== id);
           }
         });
-        if (!await saveState()) return;
+        if (!await saveState(false, changedIds)) return;
         render();
         showToast('문구가 삭제되었습니다.');
       }
     }
 
     function scrollToQuote(targetId) {
-      let targetIndex = getFilteredQuotes().findIndex(quote => quote.id === targetId);
-      if (targetIndex === -1) {
-        resetAllFilters();
-        targetIndex = getFilteredQuotes().findIndex(quote => quote.id === targetId);
+      let filtered = getFilteredQuotes();
+      let index = filtered.findIndex(q => q.id === targetId);
+      if (index === -1) { resetAllFilters(); filtered = getFilteredQuotes(); index = filtered.findIndex(q => q.id === targetId); }
+      if (index < 0) return;
+      displayedCount = Math.max(displayedCount, Math.ceil((index + 1) / PAGE_CHUNK) * PAGE_CHUNK);
+      feedWindow.forcedIndex = index;
+      renderQuotesFeed(filtered);
+      const node = document.getElementById(`quote-${targetId}`);
+      if (node) {
+        const header = document.querySelector('header').getBoundingClientRect().height;
+        window.scrollTo(0, scrollY + node.getBoundingClientRect().top - header - 16);
+        node.classList.add('highlight-quote');
+        setTimeout(() => node.classList.remove('highlight-quote'), 2000);
       }
-      if (targetIndex >= displayedCount) {
-        displayedCount = Math.ceil((targetIndex + 1) / PAGE_CHUNK) * PAGE_CHUNK;
-        render();
-      }
-      setTimeout(() => {
-        const el = document.getElementById(`quote-${targetId}`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.classList.add('highlight-quote');
-          setTimeout(() => el.classList.remove('highlight-quote'), 2000);
-        }
-      }, 100);
+      feedWindow.forcedIndex = null;
+      updateBatchActionBarUI(filtered);
+      scheduleFeedWindow();
     }
 
     /* ========== BATCH SELECTION & ASSIGNMENT (COMPACT MODE) ========== */
-    function updateBatchActionBarUI() {
+    function updateBatchActionBarUI(filtered = null) {
       const bar = document.getElementById('batchActionBar');
       if (!bar) return;
       if (currentFilter.viewMode !== 'compact') {
@@ -3720,7 +4235,7 @@
       }
       bar.classList.remove('hidden');
 
-      const visibleQuotes = getFilteredQuotes().slice(0, displayedCount);
+      const visibleQuotes = (filtered || getFilteredQuotes()).slice(0, displayedCount);
       const countEl = document.getElementById('batchSelectedCountText');
       if (countEl) {
         countEl.textContent = `${selectedQuoteIds.size}개 선택됨`;
@@ -3755,8 +4270,16 @@
       } else {
         selectedQuoteIds.delete(id);
       }
+      updateQuoteSelectionUI(id, isSelected);
+      updateBatchActionBarUI();
+    }
+
+    function updateQuoteSelectionUI(id, isSelected) {
       const el = document.getElementById(`quote-${id}`);
       if (el) {
+        const checkbox = el.querySelector('.quote-batch-checkbox');
+        if (!checkbox) return;
+        checkbox.checked = isSelected;
         if (isSelected) {
           el.classList.remove('bg-white', 'border-paint-border');
           el.classList.add('bg-blue-50/40', 'border-paint-blue', 'ring-1', 'ring-paint-blue/30');
@@ -3773,7 +4296,6 @@
           }
         }
       }
-      updateBatchActionBarUI();
     }
 
     function toggleSelectAllQuotes(forceSelectAll) {
@@ -3788,12 +4310,15 @@
       } else {
         visibleQuotes.forEach(q => selectedQuoteIds.delete(q.id));
       }
-      render();
+      visibleQuotes.forEach(q => updateQuoteSelectionUI(q.id, shouldSelectAll));
+      updateBatchActionBarUI();
     }
 
     function clearQuoteSelection() {
+      const previousSelection = [...selectedQuoteIds];
       selectedQuoteIds.clear();
-      render();
+      previousSelection.forEach(id => updateQuoteSelectionUI(id, false));
+      updateBatchActionBarUI();
     }
 
     function openBatchSeriesModal() {
@@ -3816,7 +4341,7 @@
       const modal = document.getElementById('batchSeriesModal');
       if (modal) {
         modal.classList.remove('hidden');
-        lucide.createIcons();
+        renderIcons();
         if (input) setTimeout(() => input.focus(), 50);
       }
     }
@@ -3841,7 +4366,7 @@
           </button>
         </span>
       `).join('');
-      lucide.createIcons();
+      renderIcons();
     }
 
     function renderBatchExistingSeries() {
@@ -3962,7 +4487,7 @@
         }
       });
 
-      if (!await saveState()) {
+      if (!await saveState(false, [...selectedQuoteIds])) {
         showToast('저장에 실패했습니다.', 'error');
         return;
       }
@@ -3996,7 +4521,7 @@
       const modal = document.getElementById('batchTagModal');
       if (modal) {
         modal.classList.remove('hidden');
-        lucide.createIcons();
+        renderIcons();
         if (input) setTimeout(() => input.focus(), 50);
       }
     }
@@ -4021,7 +4546,7 @@
           </button>
         </span>
       `).join('');
-      lucide.createIcons();
+      renderIcons();
     }
 
     function renderBatchExistingTags() {
@@ -4135,7 +4660,7 @@
         }
       });
 
-      if (!await saveState()) {
+      if (!await saveState(false, [...selectedQuoteIds])) {
         showToast('저장에 실패했습니다.', 'error');
         return;
       }
@@ -4165,7 +4690,7 @@
         return;
       }
       seriesList.push({ id: `series-${Date.now()}`, name, updatedAt: Date.now() });
-      if (!await saveState()) return;
+      if (!await saveState(false, [])) return;
       input.value = '';
       document.getElementById('addSeriesForm').classList.add('hidden');
       render();
@@ -4174,6 +4699,7 @@
 
     async function deleteSeries(id, name) {
       if (confirm(`'${name}' 시리즈를 삭제하시겠습니까? (소속 문구는 '미등록'으로 변경됩니다)`)) {
+        const changedIds = quotes.filter(q => normalizeQuoteSeries(q.series).includes(name)).map(q => q.id);
         deletedSeries = mergeDeletions(deletedSeries, [{ id: name, updatedAt: Date.now() }]);
         seriesList = seriesList.filter(s => s.id !== id);
         quotes.forEach(q => {
@@ -4187,7 +4713,7 @@
           }
         });
         if (currentFilter.series === name) currentFilter.series = null;
-        if (!await saveState()) return;
+        if (!await saveState(false, changedIds)) return;
         render();
         showToast(`'${name}' 시리즈가 삭제되었습니다.`);
       }
@@ -4247,7 +4773,7 @@
         select.innerHTML = opts;
         select.value = '';
       }
-      lucide.createIcons();
+      renderIcons();
     }
 
     function handlePickSeries(val) {
@@ -4348,7 +4874,7 @@
       if (relatedSearchEl1) relatedSearchEl1.value = '';
       document.getElementById('quoteModal').classList.remove('hidden');
       requestAnimationFrame(() => resetModalScrollTop());
-      lucide.createIcons();
+      renderIcons();
     }
 
     function openEditQuoteModal(id) {
@@ -4386,7 +4912,7 @@
       if (relatedSearchEl2) relatedSearchEl2.value = '';
       document.getElementById('quoteModal').classList.remove('hidden');
       requestAnimationFrame(() => resetModalScrollTop());
-      lucide.createIcons();
+      renderIcons();
     }
 
     function closeQuoteModal() {
@@ -4674,7 +5200,7 @@
       }
 
       document.getElementById('quoteDetailModal').classList.remove('hidden');
-      lucide.createIcons();
+      renderIcons();
     }
 
     function toggleDetailMemoCollapse(forceOpen = null) {
@@ -4693,7 +5219,7 @@
         if (chevron) chevron.classList.remove('rotate-180');
         if (stateText) stateText.textContent = '열기';
       }
-      lucide.createIcons();
+      renderIcons();
     }
 
     function closeQuoteDetailModal() {
@@ -4710,9 +5236,7 @@
       favBtn.innerHTML = `<i data-lucide="star" class="w-5 h-5 ${isFavorite ? 'fill-amber-400 text-amber-400' : 'text-slate-300 hover:text-amber-400'}"></i>`;
       favBtn.title = isFavorite ? '즐겨찾기 해제' : '즐겨찾기 등록';
       if (window.lucide && typeof lucide.createIcons === 'function') {
-        lucide.createIcons({
-          root: favBtn
-        });
+        renderIcons(favBtn);
       }
     }
 
@@ -4977,7 +5501,7 @@
       updateTagPickerSortButtonsUI();
       renderTagPickerList();
       document.getElementById('tagPickerModal').classList.remove('hidden');
-      lucide.createIcons();
+      renderIcons();
     }
 
     function closeTagPickerModal(confirmed = false) {
@@ -5071,7 +5595,7 @@
           </button>
         `;
       }).join('');
-      lucide.createIcons();
+      renderIcons();
     }
 
     function addTagFromInput() {
@@ -5106,7 +5630,7 @@
           `).join('');
         }
       }
-      lucide.createIcons();
+      renderIcons();
     }
 
     let relatedCandidateLimit = 100;
@@ -5202,7 +5726,7 @@
       if (preserveScroll && prevScrollTop > 0) {
         list.scrollTop = prevScrollTop;
       }
-      lucide.createIcons();
+      renderIcons();
     }
 
     function toggleEditorRelated(id, checked) {
@@ -5339,7 +5863,7 @@
         }
       });
 
-      if (!await saveState()) return;
+      if (!await saveState(false, [targetCurrentId, ...prevRelatedIds, ...nextRelatedIds])) return;
       showToast(editId ? '문구가 수정되었습니다.' : '문구가 등록되었습니다.');
       closeQuoteModal();
       render();
@@ -5489,7 +6013,7 @@
         modal.scrollTop = 0;
       }
       if (body) body.scrollTop = 0;
-      lucide.createIcons();
+      renderIcons();
     }
 
     function closeBackupModal() {
