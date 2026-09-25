@@ -47,6 +47,12 @@
       color: #0f172a;
       font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
     }
+    /* Keep the feed width and scroll offset stable while a popup is open. */
+    html { scrollbar-gutter: stable; }
+    html.modal-scroll-locked,
+    html.modal-scroll-locked body { overflow: hidden; }
+    .archive-modal { overscroll-behavior: contain; }
+
     /* Custom Scrollbar */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -639,7 +645,7 @@
   <!-- ==================== MODALS ==================== -->
 
   <!-- 1. 문구 등록/수정 모달 -->
-  <div id="quoteModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
+  <div id="quoteModal" class="archive-modal hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
     <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-3xl sm:max-w-4xl overflow-hidden my-8" onclick="event.stopPropagation()">
       <div class="bg-paint-navy border-b border-slate-700 px-4 sm:px-5 py-2.5 flex items-center justify-between text-white shrink-0">
         <div class="flex items-center gap-2">
@@ -889,7 +895,7 @@
   </div>
 
   <!-- 1-1. 기존 태그 선택 팝업 모달 -->
-  <div id="tagPickerModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs overflow-y-auto">
+  <div id="tagPickerModal" class="archive-modal hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs overflow-y-auto">
     <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-lg overflow-hidden my-6 flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
       <!-- 모달 헤더 -->
       <div class="bg-paint-navy border-b border-slate-700 px-4 sm:px-5 py-2.5 flex items-center justify-between text-white shrink-0">
@@ -991,7 +997,7 @@
   </div>
 
   <!-- 선택 시리즈 지정 모달 -->
-  <div id="batchSeriesModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto" onclick="closeBatchSeriesModal()">
+  <div id="batchSeriesModal" class="archive-modal hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto" onclick="closeBatchSeriesModal()">
     <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-lg overflow-hidden my-6 flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
       <div class="bg-paint-navy border-b border-slate-700 px-4 sm:px-5 py-2.5 flex items-center justify-between text-white shrink-0">
         <div class="flex items-center gap-2">
@@ -1085,7 +1091,7 @@
   </div>
 
   <!-- 선택 태그 등록 모달 -->
-  <div id="batchTagModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto" onclick="closeBatchTagModal()">
+  <div id="batchTagModal" class="archive-modal hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto" onclick="closeBatchTagModal()">
     <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-lg overflow-hidden my-6 flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
       <div class="bg-paint-navy border-b border-slate-700 px-4 sm:px-5 py-2.5 flex items-center justify-between text-white shrink-0">
         <div class="flex items-center gap-2">
@@ -1188,7 +1194,7 @@
   </div>
 
   <!-- 2. 랜덤 추천 모달 -->
-  <div id="randomModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
+  <div id="randomModal" class="archive-modal hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
     <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-2xl sm:max-w-3xl overflow-hidden my-6 flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
       <div class="bg-paint-navy border-b border-slate-700 px-4 sm:px-5 py-2.5 flex items-center justify-between text-white shrink-0">
         <div class="flex items-center gap-2">
@@ -1250,7 +1256,7 @@
   </div>
 
   <!-- 3. 백업 및 복원 모달 -->
-  <div id="backupModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto" onclick="closeBackupModal()">
+  <div id="backupModal" class="archive-modal hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto" onclick="closeBackupModal()">
     <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-lg my-auto flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden" onclick="event.stopPropagation()">
       <div class="bg-paint-navy border-b border-slate-700 px-4 sm:px-5 py-3 flex items-center justify-between text-white shrink-0 sticky top-0 z-10">
         <div class="flex items-center gap-2">
@@ -1362,7 +1368,7 @@
   </div>
 
   <!-- 4. 전문 읽기 팝업 모달 (Reader Modal) -->
-  <div id="quoteDetailModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
+  <div id="quoteDetailModal" class="archive-modal hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto">
     <div class="bg-white border-2 border-slate-700 rounded-lg shadow-2xl w-full max-w-3xl overflow-hidden my-6 flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
       <!-- 모달 헤더 -->
       <div class="detail-heading bg-paint-navy border-b border-slate-700 px-4 sm:px-5 py-2.5 flex items-center justify-between text-white shrink-0">
@@ -3441,7 +3447,7 @@
     }
 
     // displayedCount is the logical "loaded" range; DOM contains only a viewport window.
-    const feedWindow = { items: [], nodes: new Map(), heights: new Map(), offsets: [0], mode: '', width: 0, frame: 0, measureFrame: 0, forcedIndex: null };
+    const feedWindow = { items: [], nodes: new Map(), heights: new Map(), offsets: [0], mode: '', width: 0, frame: 0, measureFrame: 0, forcedIndex: null, jumpAnchor: null };
     const feedResizeObserver = new ResizeObserver(() => {
       if (!feedWindow.measureFrame) feedWindow.measureFrame = requestAnimationFrame(measureFeedRows);
     });
@@ -3477,7 +3483,7 @@
       feedWindow.measureFrame = 0;
       if (!feedWindow.items.length) return;
       const headerBottom = document.querySelector('header').getBoundingClientRect().bottom;
-      const anchor = [...feedWindow.nodes.values()].find(node => node.getBoundingClientRect().bottom > headerBottom);
+      const anchor = feedWindow.nodes.get(feedWindow.jumpAnchor) || [...feedWindow.nodes.values()].find(node => node.getBoundingClientRect().bottom > headerBottom);
       const anchorTop = anchor?.getBoundingClientRect().top;
       let changed = false;
       for (const [id, node] of feedWindow.nodes) {
@@ -3498,8 +3504,9 @@
         container.firstElementChild.style.height = feedWindow.offsets[start] + 'px';
         container.lastElementChild.style.height = (feedWindow.offsets.at(-1) - feedWindow.offsets[end]) + 'px';
       }
-      if (anchor?.isConnected && anchorTop < innerHeight && anchorTop < headerBottom + 100) {
-        const delta = anchor.getBoundingClientRect().top - anchorTop;
+      if (anchor?.isConnected && (feedWindow.jumpAnchor || (anchorTop < innerHeight && anchorTop < headerBottom + 100))) {
+        const targetTop = feedWindow.jumpAnchor ? headerBottom + 16 : anchorTop;
+        const delta = anchor.getBoundingClientRect().top - targetTop;
         if (Math.abs(delta) > 0.5) window.scrollBy(0, delta);
       }
       scheduleFeedWindow();
@@ -3509,15 +3516,27 @@
       if (!feedWindow.items.length) return;
       const container = document.getElementById('quotesContainer');
       const width = container.clientWidth;
+      // Capture before mounting rows: newly revealed rows may differ from estimates.
+      const headerBottom = document.querySelector('header').getBoundingClientRect().bottom;
+      const visibleNode = [...feedWindow.nodes.values()].find(row => {
+        const rect = row.getBoundingClientRect();
+        return rect.bottom > headerBottom && rect.top < innerHeight;
+      });
+      const scrollAnchor = visibleNode ? { id: visibleNode.dataset.quoteId, top: visibleNode.getBoundingClientRect().top } : null;
+      let resizeAnchor = null;
       if (feedWindow.width !== width || feedWindow.mode !== currentFilter.viewMode) {
+        const headerBottom = document.querySelector('header').getBoundingClientRect().bottom;
+        const node = feedWindow.nodes.get(feedWindow.jumpAnchor) || [...feedWindow.nodes.values()].find(row => row.getBoundingClientRect().bottom > headerBottom);
+        if (node) resizeAnchor = { id: node.dataset.quoteId, top: node.getBoundingClientRect().top };
         feedWindow.width = width; feedWindow.mode = currentFilter.viewMode;
         feedWindow.heights.clear(); rebuildFeedOffsets(); refresh = true;
       }
       const relativeTop = Math.max(0, -container.getBoundingClientRect().top);
-      const center = feedWindow.forcedIndex ?? feedIndexAt(relativeTop);
+      const anchorIndex = resizeAnchor ? feedWindow.items.findIndex(q => q.id === resizeAnchor.id) : -1;
+      const center = feedWindow.forcedIndex ?? (anchorIndex >= 0 ? anchorIndex : feedIndexAt(relativeTop));
       let start = Math.max(0, center - 4);
       let end = Math.min(feedWindow.items.length, Math.max(center + 8, feedIndexAt(relativeTop + innerHeight * 2) + 4));
-      if (feedWindow.forcedIndex !== null) end = Math.min(feedWindow.items.length, center + 8);
+      if (feedWindow.forcedIndex !== null || anchorIndex >= 0) end = Math.min(feedWindow.items.length, center + 8);
       end = Math.min(end, start + 100);
       // Keep a keyboard-focused row mounted while it is just beyond the viewport window.
       const active = document.activeElement?.closest('#quotesContainer [data-quote-id]');
@@ -3525,6 +3544,10 @@
       if (focusIndex >= 0 && Math.abs(focusIndex - center) < 100) {
         start = Math.min(start, focusIndex); end = Math.max(end, focusIndex + 1);
       }
+      // Scrolling within the same window needs no DOM replacement or remeasurement.
+      const mounted = [...feedWindow.nodes.values()];
+      if (!refresh && !feedWindow.jumpAnchor && mounted.length === end - start &&
+          mounted.every((node, i) => node.dataset.quoteId === feedWindow.items[start + i].id)) return;
       const focused = document.activeElement;
       const next = new Map();
       const fragment = document.createDocumentFragment();
@@ -3552,6 +3575,15 @@
       if (focused && container.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
       next.forEach(node => feedResizeObserver.observe(node));
       renderIcons(container);
+      const jumpNode = feedWindow.nodes.get(feedWindow.jumpAnchor);
+      const retainedAnchor = resizeAnchor || scrollAnchor;
+      const anchorNode = retainedAnchor && feedWindow.nodes.get(retainedAnchor.id);
+      if (jumpNode || anchorNode) {
+        const node = jumpNode || anchorNode;
+        const top = jumpNode ? document.querySelector('header').getBoundingClientRect().bottom + 16 : retainedAnchor.top;
+        const delta = node.getBoundingClientRect().top - top;
+        if (Math.abs(delta) > 0.5) window.scrollBy(0, delta);
+      }
       if (!feedWindow.measureFrame) feedWindow.measureFrame = requestAnimationFrame(measureFeedRows);
     }
 
@@ -3575,6 +3607,9 @@
       feedWindow.forcedIndex = null; scheduleFeedWindow();
     });
 
+    for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown']) {
+      window.addEventListener(event, () => { feedWindow.jumpAnchor = null; }, { passive: true });
+    }
     window.addEventListener('scroll', scheduleFeedWindow, { passive: true });
     window.addEventListener('resize', scheduleFeedWindow, { passive: true });
 
@@ -3584,7 +3619,7 @@
       if (countEl) countEl.textContent = filtered.length;
 
       if (filtered.length === 0) {
-        feedWindow.items = []; feedWindow.nodes.clear(); feedResizeObserver.disconnect();
+        feedWindow.items = []; feedWindow.jumpAnchor = null; feedWindow.nodes.clear(); feedResizeObserver.disconnect();
         container.style.display = ''; container.style.overflowAnchor = '';
         container.innerHTML = `
           <div class="bg-white border border-paint-border rounded-lg p-12 text-center flex flex-col items-center justify-center gap-3 shadow-sm">
@@ -3605,6 +3640,7 @@
 
       const nextItems = filtered.slice(0, displayedCount);
       const validIds = new Set(nextItems.map(q => q.id));
+      if (!validIds.has(feedWindow.jumpAnchor)) feedWindow.jumpAnchor = null;
       for (const id of feedWindow.heights.keys()) if (!validIds.has(id)) feedWindow.heights.delete(id);
       feedWindow.items = nextItems;
       container.style.display = 'block'; container.style.overflowAnchor = 'none';
@@ -4211,6 +4247,7 @@
       if (index === -1) { resetAllFilters(); filtered = getFilteredQuotes(); index = filtered.findIndex(q => q.id === targetId); }
       if (index < 0) return;
       displayedCount = Math.max(displayedCount, Math.ceil((index + 1) / PAGE_CHUNK) * PAGE_CHUNK);
+      feedWindow.jumpAnchor = targetId;
       feedWindow.forcedIndex = index;
       renderQuotesFeed(filtered);
       const node = document.getElementById(`quote-${targetId}`);
@@ -4340,7 +4377,7 @@
 
       const modal = document.getElementById('batchSeriesModal');
       if (modal) {
-        modal.classList.remove('hidden');
+        setModalOpen(modal, true);
         renderIcons();
         if (input) setTimeout(() => input.focus(), 50);
       }
@@ -4348,7 +4385,7 @@
 
     function closeBatchSeriesModal() {
       const modal = document.getElementById('batchSeriesModal');
-      if (modal) modal.classList.add('hidden');
+      if (modal) setModalOpen(modal, false);
     }
 
     function renderBatchSeriesChips() {
@@ -4520,7 +4557,7 @@
 
       const modal = document.getElementById('batchTagModal');
       if (modal) {
-        modal.classList.remove('hidden');
+        setModalOpen(modal, true);
         renderIcons();
         if (input) setTimeout(() => input.focus(), 50);
       }
@@ -4528,7 +4565,7 @@
 
     function closeBatchTagModal() {
       const modal = document.getElementById('batchTagModal');
-      if (modal) modal.classList.add('hidden');
+      if (modal) setModalOpen(modal, false);
     }
 
     function renderBatchChosenTagChips() {
@@ -4872,7 +4909,7 @@
       relatedCandidateLimit = 100;
       const relatedSearchEl1 = document.getElementById('modalRelatedSearch');
       if (relatedSearchEl1) relatedSearchEl1.value = '';
-      document.getElementById('quoteModal').classList.remove('hidden');
+      setModalOpen(document.getElementById('quoteModal'), true);
       requestAnimationFrame(() => resetModalScrollTop());
       renderIcons();
     }
@@ -4910,7 +4947,7 @@
       relatedCandidateLimit = 100;
       const relatedSearchEl2 = document.getElementById('modalRelatedSearch');
       if (relatedSearchEl2) relatedSearchEl2.value = '';
-      document.getElementById('quoteModal').classList.remove('hidden');
+      setModalOpen(document.getElementById('quoteModal'), true);
       requestAnimationFrame(() => resetModalScrollTop());
       renderIcons();
     }
@@ -4918,7 +4955,7 @@
     function closeQuoteModal() {
       editorOriginalBackup = '';
       resetModalScrollTop();
-      document.getElementById('quoteModal').classList.add('hidden');
+      setModalOpen(document.getElementById('quoteModal'), false);
       document.getElementById('relatedPickerBox').classList.add('hidden');
       document.getElementById('btnToggleRelatedText').textContent = '문구 선택창 열기';
       relatedCandidateLimit = 100;
@@ -5199,7 +5236,7 @@
         if (relDropdownCont) relDropdownCont.classList.add('hidden');
       }
 
-      document.getElementById('quoteDetailModal').classList.remove('hidden');
+      setModalOpen(document.getElementById('quoteDetailModal'), true);
       renderIcons();
     }
 
@@ -5226,7 +5263,7 @@
       toggleDetailRelatedDropdown(true);
       toggleDetailMemoCollapse(false);
       detailIsSwapped = false;
-      document.getElementById('quoteDetailModal').classList.add('hidden');
+      setModalOpen(document.getElementById('quoteDetailModal'), false);
       currentDetailQuoteId = null;
     }
 
@@ -5500,7 +5537,7 @@
       if (searchInput) searchInput.value = '';
       updateTagPickerSortButtonsUI();
       renderTagPickerList();
-      document.getElementById('tagPickerModal').classList.remove('hidden');
+      setModalOpen(document.getElementById('tagPickerModal'), true);
       renderIcons();
     }
 
@@ -5509,7 +5546,7 @@
         editorTags = Array.from(tempPickerTags);
         renderEditorTags();
       }
-      document.getElementById('tagPickerModal').classList.add('hidden');
+      setModalOpen(document.getElementById('tagPickerModal'), false);
     }
 
     function toggleTagPickerItem(tag) {
@@ -5937,12 +5974,12 @@
         return;
       }
       updateRandomFilterScopeUI(candidates);
-      document.getElementById('randomModal').classList.remove('hidden');
+      setModalOpen(document.getElementById('randomModal'), true);
       rollRandomQuote();
     }
 
     function closeRandomModal() {
-      document.getElementById('randomModal').classList.add('hidden');
+      setModalOpen(document.getElementById('randomModal'), false);
     }
 
     function rollRandomQuote() {
@@ -6009,7 +6046,7 @@
       const modal = document.getElementById('backupModal');
       const body = document.getElementById('backupModalBody');
       if (modal) {
-        modal.classList.remove('hidden');
+        setModalOpen(modal, true);
         modal.scrollTop = 0;
       }
       if (body) body.scrollTop = 0;
@@ -6017,7 +6054,7 @@
     }
 
     function closeBackupModal() {
-      document.getElementById('backupModal').classList.add('hidden');
+      setModalOpen(document.getElementById('backupModal'), false);
     }
 
     function downloadBackupJson() {
@@ -6120,6 +6157,23 @@
         closeBackupModal();
         render();
         showToast('아카이브가 초기화되었습니다.');
+      }
+    }
+
+    // Share one lock across stacked popups; only the last close restores the feed.
+    let modalScrollPosition = null;
+    function setModalOpen(modal, open) {
+      if (!modal) return;
+      if (open && !modalScrollPosition) {
+        modalScrollPosition = { x: window.scrollX, y: window.scrollY };
+        document.documentElement.classList.add('modal-scroll-locked');
+      }
+      modal.classList.toggle('hidden', !open);
+      if (!document.querySelector('.archive-modal:not(.hidden)') && modalScrollPosition) {
+        const position = modalScrollPosition;
+        modalScrollPosition = null;
+        document.documentElement.classList.remove('modal-scroll-locked');
+        window.scrollTo({ left: position.x, top: position.y, behavior: 'instant' });
       }
     }
 
