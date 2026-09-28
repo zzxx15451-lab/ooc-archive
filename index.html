@@ -119,6 +119,20 @@
     }
     #quotesContainer .card-heading-main { overflow-x: auto; scrollbar-width: thin; }
     #quotesContainer .card-heading-main > * { flex-shrink: 0; max-width: 160px; white-space: nowrap; }
+    #quotesContainer .card-heading-main > .card-title-badge { max-width: 220px; }
+    #quotesContainer .feed-series-inline, #quotesContainer .feed-series-desktop { display: contents; }
+    #quotesContainer .card-heading-main .feed-series-desktop > button { flex-shrink: 0; max-width: 160px; white-space: nowrap; }
+    #quotesContainer .feed-series-mobile { display: none; }
+    .feed-series-menu { position: fixed; z-index: 100; display: flex; flex-direction: column; gap: 4px; width: min(240px, calc(100vw - 16px)); max-height: min(280px, calc(100dvh - 16px)); box-sizing: border-box; padding: 8px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid #334155; border-radius: 8px; background: #0f172a; box-shadow: 0 12px 24px rgba(15, 23, 42, .24); }
+    .feed-series-menu[hidden] { display: none; }
+    .feed-series-menu-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 8px; border-bottom: 1px solid #1e293b; color: #94a3b8; font: 700 11px ui-monospace, monospace; }
+    .feed-series-menu-heading strong { color: #60a5fa; white-space: nowrap; }
+    .feed-series-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 8px; border: 1px solid #334155; border-radius: 5px; background: #1e293b; color: #dbeafe; text-align: left; font-size: 12px; font-weight: 600; }
+    .feed-series-menu-item:hover, .feed-series-menu-item:focus-visible { background: #334155; outline: 1px solid #60a5fa; }
+    .feed-series-menu-item[data-filter-state="included"] { border-color: #3b82f6; color: #bfdbfe; }
+    .feed-series-menu-item[data-filter-state="excluded"] { border-color: #e11d48; color: #fda4af; text-decoration: line-through; }
+    .feed-series-menu-item svg { flex-shrink: 0; width: 14px; height: 14px; }
+    .feed-series-menu-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #quotesContainer .card-heading-main > button > span { overflow: hidden; text-overflow: ellipsis; }
     #quotesContainer .card-heading-main > button > svg { flex-shrink: 0; }
     #quotesContainer .card-heading-main > span,
@@ -146,11 +160,24 @@
     #detailBodyContent { overflow-wrap: anywhere; }
     @media (max-width: 767px) {
       #quotesContainer .card-heading-main > * { max-width: 140px; }
+      #quotesContainer .card-heading-row { flex-wrap: wrap; }
+      #quotesContainer .card-heading-main { flex: 1 1 210px; flex-wrap: wrap; overflow-x: visible; }
+      #quotesContainer .card-heading-main > .card-title-badge { max-width: 140px; min-width: 0; flex-shrink: 1; }
+      #quotesContainer .feed-series-desktop { display: none; }
+      #quotesContainer .feed-series-mobile { display: inline-flex; min-width: 0; max-width: 100%; }
+      #quotesContainer .feed-series-mobile > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #quotesContainer .feed-series-mobile > button { max-width: 100%; }
+      #quotesContainer .card-heading-main > .feed-series-inline { display: flex; min-width: 0; max-width: 140px; flex-shrink: 1; }
+      #quotesContainer .compact-series { overflow-x: visible; }
+      #quotesContainer .compact-series .feed-series-mobile { max-width: 110px; }
       #quotesContainer .card-heading-meta { gap: 4px; }
       #quotesContainer .card-heading-meta > div { padding-inline: 5px; }
       #quotesContainer .card-heading-meta button[title="한글 ↔ 영어 본문 전환"] > span:first-child { display: none; }
       #quotesContainer .compact-main > span[title] { max-width: 120px; }
       #quotesContainer .compact-series { max-width: 110px; flex: 1; }
+    }
+    @media (min-width: 768px) {
+      .feed-series-menu { display: none; }
     }
     @media (max-width: 639px) {
       #quoteDetailModal #detailDocNumber { max-width: 100%; }
@@ -1398,7 +1425,7 @@
             <!-- 연관 문구 팝오버 메뉴 -->
             <div
               id="detailRelatedDropdownMenu"
-              class="hidden absolute right-0 top-full mt-1.5 w-64 sm:w-80 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-2 z-50 flex flex-col gap-1 max-h-64 overflow-y-auto"
+              class="hidden absolute left-0 right-auto top-full mt-1.5 w-64 sm:w-80 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-2 z-50 flex flex-col gap-1 max-h-64 overflow-y-auto"
             >
               <div class="text-[11px] font-bold text-slate-400 px-2 py-1 border-b border-slate-800 flex items-center justify-between font-mono">
                 <span>연관된 문구 바로가기</span>
@@ -2845,6 +2872,7 @@
       next.dataset.quoteId = id; next.dataset.feedIndex = row.dataset.feedIndex;
       next.style.marginBottom = row.style.marginBottom;
       next._archiveMarkup = template.innerHTML;
+      if (activeFeedSeriesButton && row.contains(activeFeedSeriesButton)) closeFeedSeriesMenus();
       feedResizeObserver.unobserve(row); row.replaceWith(next);
       feedWindow.nodes.set(id, next); feedResizeObserver.observe(next);
       renderIcons(next);
@@ -3572,6 +3600,7 @@
       const bottom = document.createElement('div'); bottom.setAttribute('aria-hidden', 'true'); bottom.style.height = (feedWindow.offsets.at(-1) - feedWindow.offsets[end]) + 'px';
       fragment.append(bottom);
       // Moving retained nodes keeps listeners/state; restore focus if the fragment detached it.
+      closeFeedSeriesMenus();
       feedResizeObserver.disconnect();
       container.replaceChildren(fragment); feedWindow.nodes = next;
       if (focused && container.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
@@ -3616,6 +3645,7 @@
     window.addEventListener('resize', scheduleFeedWindow, { passive: true });
 
     function renderQuotesFeed(filtered = getFilteredQuotes(), appendFrom = 0) {
+      closeFeedSeriesMenus();
       const container = document.getElementById('quotesContainer');
       const countEl = document.getElementById('filteredCount');
       if (countEl) countEl.textContent = filtered.length;
@@ -3675,6 +3705,104 @@
       renderQuoteRow(id);
     }
 
+    function renderFeedSeriesBadge(name, mode) {
+      const isUnassigned = name === '미등록';
+      const isInc = currentFilter.series === name;
+      const isExc = Array.isArray(currentFilter.excludeSeries) && currentFilter.excludeSeries.includes(name);
+      const title = isInc ? '클릭 시 제외(NOT) 필터로 전환' : (isExc ? '클릭 시 필터 해제' : '클릭 시 포함 필터 적용');
+      if (mode === 'menu') {
+        return `<button type="button" onclick="selectSeriesFilter('${escapeInlineJsString(name)}')" title="${title}" class="feed-series-menu-item" data-filter-state="${isInc ? 'included' : (isExc ? 'excluded' : 'none')}"><i data-lucide="${isExc ? 'ban' : (isUnassigned ? 'folder-minus' : 'layers')}"></i><span>${escapeHtml(name)}</span></button>`;
+      }
+      if (mode === 'compact') {
+        let cls = isUnassigned
+          ? 'bg-slate-100 text-slate-500 border border-slate-200'
+          : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-paint-blue';
+        if (isInc) cls = 'bg-paint-blue text-white font-bold shadow-xs';
+        else if (isExc) cls = 'bg-rose-500 text-white font-bold line-through decoration-white/70 shadow-xs';
+        return `<button type="button" onclick="selectSeriesFilter('${escapeInlineJsString(name)}')" title="${title}" class="text-[11px] font-semibold ${cls} px-2 py-0.5 rounded shrink-0 max-w-[140px] min-w-0 flex items-center"><span class="truncate">${escapeHtml(name)}</span></button>`;
+      }
+      let cls = isUnassigned
+        ? 'bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-300'
+        : 'bg-blue-50 text-paint-blue hover:bg-blue-100 border border-blue-200';
+      if (isInc) cls = 'bg-paint-blue text-white border-paint-blue font-bold shadow-xs';
+      else if (isExc) cls = 'bg-rose-500 text-white border-rose-600 font-bold line-through decoration-white/70 shadow-xs';
+      return `<button type="button" onclick="selectSeriesFilter('${escapeInlineJsString(name)}')" title="${title}" class="flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded transition-colors min-w-0 ${cls}"><i data-lucide="${isExc ? 'ban' : (isUnassigned ? 'folder-minus' : 'layers')}" class="w-3 h-3 shrink-0"></i><span class="truncate">${escapeHtml(name)}</span></button>`;
+    }
+
+    function renderFeedSeriesInline(q, mode) {
+      const names = normalizeQuoteSeries(q.series);
+      const badges = names.map(name => renderFeedSeriesBadge(name, mode)).join('');
+      if (names.length === 1) return `<span class="feed-series-desktop">${badges}</span><span class="feed-series-mobile">${badges}</span>`;
+      return `<span class="feed-series-desktop">${badges}</span>
+        <button type="button" class="feed-series-mobile items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded border border-blue-200 bg-blue-50 text-paint-blue whitespace-nowrap shrink-0" aria-label="시리즈 ${names.length}개 보기" aria-controls="feed-series-menu-${escapeHtml(q.id)}" aria-expanded="false" onclick="toggleFeedSeriesMenu(this)">
+          <i data-lucide="menu" class="w-3.5 h-3.5 shrink-0"></i><span>시리즈 ${names.length}개</span>
+        </button>`;
+    }
+
+    function renderFeedSeriesMenu(q, mode) {
+      const names = normalizeQuoteSeries(q.series);
+      if (names.length < 2) return '';
+      return `<div id="feed-series-menu-${escapeHtml(q.id)}" class="feed-series-menu" role="group" aria-label="등록된 시리즈" hidden>
+        <div class="feed-series-menu-heading"><span>등록된 시리즈</span><strong>${names.length}개</strong></div>
+        ${names.map(name => renderFeedSeriesBadge(name, 'menu')).join('')}
+      </div>`;
+    }
+
+    let activeFeedSeriesButton = null;
+    let activeFeedSeriesMenu = null;
+
+    function closeFeedSeriesMenus() {
+      if (!activeFeedSeriesMenu) return;
+      activeFeedSeriesMenu.hidden = true;
+      activeFeedSeriesButton.setAttribute('aria-expanded', 'false');
+      const owner = activeFeedSeriesButton.isConnected ? activeFeedSeriesButton.closest('[data-quote-id]') : null;
+      if (owner) owner.append(activeFeedSeriesMenu);
+      else activeFeedSeriesMenu.remove();
+      activeFeedSeriesButton = null;
+      activeFeedSeriesMenu = null;
+    }
+
+    function toggleFeedSeriesMenu(button) {
+      if (activeFeedSeriesButton === button) {
+        closeFeedSeriesMenus();
+        return;
+      }
+      closeFeedSeriesMenus();
+      const menu = document.getElementById(button.getAttribute('aria-controls'));
+      if (!menu) return;
+      document.body.append(menu);
+      menu.hidden = false;
+      const rect = button.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth;
+      const viewportHeight = window.innerHeight;
+      const width = Math.min(240, viewportWidth - 16);
+      menu.style.width = `${width}px`;
+      menu.style.left = `${Math.max(8, Math.min(rect.left, viewportWidth - width - 8))}px`;
+      const below = viewportHeight - rect.bottom - 14;
+      const above = rect.top - 14;
+      const placeAbove = below < Math.min(menu.scrollHeight, 120) && above > below;
+      const height = Math.min(280, Math.max(48, placeAbove ? above : below));
+      menu.style.maxHeight = `${height}px`;
+      menu.style.top = `${placeAbove ? Math.max(8, rect.top - 6 - Math.min(menu.scrollHeight, height)) : rect.bottom + 6}px`;
+      button.setAttribute('aria-expanded', 'true');
+      activeFeedSeriesButton = button;
+      activeFeedSeriesMenu = menu;
+    }
+
+    document.addEventListener('pointerdown', event => {
+      if (!event.target.closest('.feed-series-mobile, .feed-series-menu')) closeFeedSeriesMenus();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      const button = activeFeedSeriesButton;
+      if (button) {
+        closeFeedSeriesMenus();
+        button.focus();
+      }
+    });
+    window.addEventListener('scroll', closeFeedSeriesMenus, { passive: true });
+    window.addEventListener('resize', closeFeedSeriesMenus, { passive: true });
+
     function renderCompactQuote(q) {
       const { charVal, userVal } = getActiveMacroValues();
       const activeContent = cardLangState.get(q.id) === 'en' && q.contentEn ? q.contentEn : q.content;
@@ -3715,26 +3843,13 @@
               <span class="font-mono text-xs font-bold text-slate-500 shrink-0">#${String(q.docNumber).padStart(3, '0')}</span>
             `}
             <div class="compact-series flex items-center gap-1 shrink-0 flex-wrap">
-              ${normalizeQuoteSeries(q.series).map(s => {
-                const isUnassigned = s === '미등록';
-                const isInc = currentFilter.series === s;
-                const isExc = Array.isArray(currentFilter.excludeSeries) && currentFilter.excludeSeries.includes(s);
-                let cls = isUnassigned
-                  ? 'bg-slate-100 text-slate-500 border border-slate-200'
-                  : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-paint-blue';
-                if (isInc) cls = 'bg-paint-blue text-white font-bold shadow-xs';
-                else if (isExc) cls = 'bg-rose-500 text-white font-bold line-through decoration-white/70 shadow-xs';
-                return `
-                  <span onclick="selectSeriesFilter('${escapeInlineJsString(s)}')" title="${isInc ? '클릭 시 제외(NOT) 필터로 전환' : (isExc ? '클릭 시 필터 해제' : '클릭 시 포함 필터 적용')}" class="text-[11px] font-semibold ${cls} px-2 py-0.5 rounded cursor-pointer shrink-0">
-                    ${escapeHtml(s)}
-                  </span>
-                `;
-              }).join('')}
+              ${renderFeedSeriesInline(q, 'compact')}
             </div>
             <p onclick="openQuoteDetailModal('${escapeInlineJsString(q.id)}')" class="text-xs text-slate-800 truncate font-medium flex-1 cursor-pointer hover:text-paint-blue transition-colors">
               ${previewSingleLine}
             </p>
           </div>
+          ${renderFeedSeriesMenu(q, 'compact')}
           <div class="compact-actions flex items-center gap-2 shrink-0 self-end md:self-center">
             <span class="font-mono text-[11px] text-slate-400">${activeContent.length}자</span>
             ${q.contentEn ? `
@@ -3804,10 +3919,10 @@
       return `
         <article id="quote-${escapeHtml(q.id)}" class="bg-white rounded-lg border border-paint-border hover:border-slate-400 transition-all shadow-sm overflow-hidden flex flex-col justify-between">
           <!-- 카드 상단 바 -->
-          <div class="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between gap-2">
+          <div class="card-heading-row bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between gap-2">
             <div class="card-heading-main flex items-center gap-2.5 flex-wrap">
               ${q.title ? `
-                <span class="font-bold text-xs sm:text-sm bg-slate-800 text-white px-2.5 py-0.5 rounded tracking-wide shadow-2xs truncate max-w-[200px] sm:max-w-xs flex items-center gap-1.5" title="${escapeHtml(q.title)}">
+                <span class="card-title-badge font-bold text-xs sm:text-sm bg-slate-800 text-white px-2.5 py-0.5 rounded tracking-wide shadow-2xs truncate max-w-[200px] sm:max-w-xs flex items-center gap-1.5" title="${escapeHtml(q.title)}">
                   <i data-lucide="bookmark" class="w-3 h-3 text-blue-300 shrink-0"></i>
                   <span class="truncate">${escapeHtml(q.title)}</span>
                 </span>
@@ -3816,22 +3931,7 @@
                   ${formatDocNumber(q.docNumber)}
                 </span>
               `}
-              ${normalizeQuoteSeries(q.series).map(s => {
-                const isUnassigned = s === '미등록';
-                const isInc = currentFilter.series === s;
-                const isExc = Array.isArray(currentFilter.excludeSeries) && currentFilter.excludeSeries.includes(s);
-                let cls = isUnassigned
-                  ? 'bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-300'
-                  : 'bg-blue-50 text-paint-blue hover:bg-blue-100 border border-blue-200';
-                if (isInc) cls = 'bg-paint-blue text-white border-paint-blue font-bold shadow-xs';
-                else if (isExc) cls = 'bg-rose-500 text-white border-rose-600 font-bold line-through decoration-white/70 shadow-xs';
-                return `
-                  <button onclick="selectSeriesFilter('${escapeInlineJsString(s)}')" title="${isInc ? '클릭 시 제외(NOT) 필터로 전환' : (isExc ? '클릭 시 필터 해제' : '클릭 시 포함 필터 적용')}" class="flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded transition-colors ${cls}">
-                    <i data-lucide="${isExc ? 'ban' : (isUnassigned ? 'folder-minus' : 'layers')}" class="w-3 h-3"></i>
-                    <span>${escapeHtml(s)}</span>
-                  </button>
-                `;
-              }).join('')}
+              <div class="feed-series-inline">${renderFeedSeriesInline(q, 'card')}</div>
               ${q.source ? `<span class="text-xs text-slate-500 italic max-w-xs truncate">• ${escapeHtml(q.source)}</span>` : ''}
             </div>
 
@@ -3866,6 +3966,7 @@
               </button>
             </div>
           </div>
+          ${renderFeedSeriesMenu(q, 'card')}
 
           <!-- 본문 영역 (클릭 시 전문 읽기 팝업) -->
           <div class="p-4 sm:p-5 flex-1 flex flex-col gap-3">
