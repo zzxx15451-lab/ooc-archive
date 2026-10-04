@@ -2692,18 +2692,19 @@
     /*
       매크로 치환: {{char}}, {{user}}와 바로 뒤의 독립 조사만 치환
       - 영문 원문 속 npc, pc 등은 절대 자동 치환되지 않도록 보호
-      - 완성형 한글 음절로 끝나는 이름에만 은/는, 이/가 받침 규칙 적용
+      - 완성형 한글 음절로 끝나는 이름에만 은/는, 이/가, 와/과 받침 규칙 적용
     */
     function replaceMacros(text, charName, userName) {
       if (!text) return '';
       const c = (charName && charName.trim()) ? charName.trim() : '{{char}}';
       const u = (userName && userName.trim()) ? userName.trim() : '{{user}}';
-      return text.replace(/\{\{\s*(char|user)\s*\}\}(?:([은는이가])(?=$|[^\p{L}\p{N}_]))?/giu, (_, role, particle) => {
+      return text.replace(/\{\{\s*(char|user)\s*\}\}(?:([은는이가와과])(?=$|[^\p{L}\p{N}_]))?/giu, (_, role, particle) => {
         const name = role.toLowerCase() === 'char' ? c : u;
         if (!particle) return name;
         const lastCode = name.charCodeAt(name.length - 1);
         if (lastCode < 0xAC00 || lastCode > 0xD7A3) return name + particle;
         const hasBatchim = (lastCode - 0xAC00) % 28 !== 0;
+        if ('와과'.includes(particle)) return name + (hasBatchim ? '과' : '와');
         return name + ('은는'.includes(particle) ? (hasBatchim ? '은' : '는') : (hasBatchim ? '이' : '가'));
       });
     }
