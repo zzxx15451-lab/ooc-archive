@@ -723,7 +723,7 @@
                 <i data-lucide="align-justify" class="w-3.5 h-3.5 text-slate-500"></i>
                 <span>줄바꿈 정리</span>
               </button>
-              <button type="button" onclick="toggleEditorMacroNpc()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors" title="{{char}}/{{user}} ↔ NPC/PC 상호 변환">
+              <button type="button" onclick="toggleEditorMacroNpc('quoteContent')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors" title="{{char}}/{{user}} ↔ NPC/PC 상호 변환">
                 <i data-lucide="arrow-right-left" class="w-3.5 h-3.5 text-slate-500"></i>
                 <span>{{char}} ↔ NPC 변환</span>
               </button>
@@ -767,12 +767,33 @@
             </button>
           </div>
           <div id="enEditorContainer" class="hidden flex flex-col gap-1.5 mt-1">
+            <div class="flex flex-wrap items-center justify-start sm:justify-end gap-1.5">
+              <button type="button" onmousedown="event.preventDefault()" onclick="insertMacro('{{char}}', event, 'quoteContentEn')" class="px-2 py-0.5 rounded bg-blue-100 hover:bg-blue-200 text-paint-blue border border-blue-300 text-[11px] font-mono font-bold">
+                + {{char}}
+              </button>
+              <button type="button" onmousedown="event.preventDefault()" onclick="insertMacro('{{user}}', event, 'quoteContentEn')" class="px-2 py-0.5 rounded bg-red-100 hover:bg-red-200 text-paint-red border border-red-300 text-[11px] font-mono font-bold">
+                + {{user}}
+              </button>
+              <span class="text-slate-300">|</span>
+              <button type="button" onclick="cleanEditorLineBreaks('quoteContentEn')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors" title="이중 엔터 및 과도한 빈 줄 정리">
+                <i data-lucide="align-justify" class="w-3.5 h-3.5 text-slate-500"></i>
+                <span>줄바꿈 정리</span>
+              </button>
+              <button type="button" onclick="toggleEditorMacroNpc('quoteContentEn')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors" title="{{char}}/{{user}} ↔ NPC/PC 상호 변환">
+                <i data-lucide="arrow-right-left" class="w-3.5 h-3.5 text-slate-500"></i>
+                <span>{{char}} ↔ NPC 변환</span>
+              </button>
+              <button type="button" id="btnRestoreEnOriginal" onclick="restoreEditorOriginal('quoteContentEn')" class="hidden px-2.5 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-semibold flex items-center gap-1.5 transition-colors" title="처음 입력했던 영어 원문으로 즉시 되돌리기">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-amber-600"></i>
+                <span>원문 복원</span>
+              </button>
+            </div>
             <textarea
               id="quoteContentEn"
-              rows="5"
+              rows="12"
               oninput="updateEditorEnCharCount()"
               placeholder="English version of the quote... (Supports {{char}}, {{user}})"
-              class="w-full text-xs sm:text-sm p-3 border border-slate-300 rounded font-sans focus:outline-none focus:border-paint-blue leading-relaxed"
+              class="w-full text-sm sm:text-base min-h-[260px] sm:min-h-[340px] p-3.5 border border-slate-300 rounded focus:outline-none focus:border-paint-blue focus:ring-1 focus:ring-paint-blue leading-relaxed font-sans resize-y"
             ></textarea>
             <div class="text-[11px] text-slate-400 flex items-center justify-end font-mono">
               <span>영어 본문 글자수: <strong id="editorEnTotalCount" class="text-slate-700 font-bold">0</strong>자</span>
@@ -4983,6 +5004,10 @@
       if (el && countEl) {
         countEl.textContent = el.value.length;
       }
+      if (el && !editorEnOriginalBackup && el.value.trim()) {
+        editorEnOriginalBackup = el.value;
+      }
+      updateRestoreEnButtonUI();
     }
 
     function resetModalScrollTop() {
@@ -4996,6 +5021,7 @@
 
     function openQuoteModal() {
       editorOriginalBackup = '';
+      editorEnOriginalBackup = '';
       document.getElementById('editQuoteId').value = '';
       document.getElementById('quoteModalTitle').textContent = '새 문구 등록 [NEW ENTRY]';
       document.getElementById('quoteTitle').value = '';
@@ -5032,6 +5058,7 @@
 
       // 수정 창을 열었을 당시의 저장된 본문을 기준 원문으로 설정
       editorOriginalBackup = q.content || '';
+      editorEnOriginalBackup = q.contentEn || '';
       document.getElementById('editQuoteId').value = q.id;
       document.getElementById('quoteModalTitle').textContent = `문구 수정 [${formatDocNumber(q.docNumber)}]`;
       document.getElementById('quoteTitle').value = q.title || '';
@@ -5066,6 +5093,7 @@
 
     function closeQuoteModal() {
       editorOriginalBackup = '';
+      editorEnOriginalBackup = '';
       resetModalScrollTop();
       setModalOpen(document.getElementById('quoteModal'), false);
       document.getElementById('relatedPickerBox').classList.add('hidden');
@@ -5440,9 +5468,9 @@
       openEditQuoteModal(id);
     }
 
-    function insertMacro(text, e) {
+    function insertMacro(text, e, targetId = 'quoteContent') {
       if (e && e.preventDefault) e.preventDefault();
-      const ta = document.getElementById('quoteContent');
+      const ta = document.getElementById(targetId);
       if (!ta) return;
       const modalForm = ta.closest('form');
       const formScroll = modalForm ? modalForm.scrollTop : 0;
@@ -5459,24 +5487,30 @@
       ta.scrollTop = taScroll;
       if (modalForm) modalForm.scrollTop = formScroll;
 
-      updateEditorCharCount();
+      if (targetId === 'quoteContentEn') updateEditorEnCharCount();
+      else updateEditorCharCount();
     }
 
     let editorOriginalBackup = '';
+    let editorEnOriginalBackup = '';
 
-    function toggleEditorMacroNpc() {
-      let ta = document.getElementById('quoteContent');
-      const activeEl = document.activeElement;
-      if (activeEl && activeEl.id === 'quoteContentEn') {
-        ta = activeEl;
-      } else if ((!ta || !ta.value.trim()) && document.getElementById('quoteContentEn')?.value.trim()) {
-        ta = document.getElementById('quoteContentEn');
+    function toggleEditorMacroNpc(targetId) {
+      let ta = document.getElementById(targetId || 'quoteContent');
+      if (!targetId) {
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl.id === 'quoteContentEn') {
+          ta = activeEl;
+        } else if ((!ta || !ta.value.trim()) && document.getElementById('quoteContentEn')?.value.trim()) {
+          ta = document.getElementById('quoteContentEn');
+        }
       }
       if (!ta || !ta.value) return;
       const val = ta.value;
 
       // 변환 전 원문이 비어있다면 현재 입력 내용을 원문으로 안전하게 보존
-      if (!editorOriginalBackup) {
+      if (ta.id === 'quoteContentEn') {
+        if (!editorEnOriginalBackup) editorEnOriginalBackup = val;
+      } else if (!editorOriginalBackup) {
         editorOriginalBackup = val;
       }
 
@@ -5524,7 +5558,9 @@
       }
       const val = ta.value;
 
-      if (!editorOriginalBackup) {
+      if (targetId === 'quoteContentEn') {
+        if (!editorEnOriginalBackup) editorEnOriginalBackup = val;
+      } else if (!editorOriginalBackup) {
         editorOriginalBackup = val;
       }
 
@@ -5550,14 +5586,18 @@
       }
 
       ta.value = nextVal;
-      updateEditorCharCount();
+      if (targetId === 'quoteContentEn') updateEditorEnCharCount();
+      else updateEditorCharCount();
     }
 
-    function restoreEditorOriginal() {
-      if (!editorOriginalBackup) return;
-      const ta = document.getElementById('quoteContent');
-      ta.value = editorOriginalBackup;
-      updateEditorCharCount();
+    function restoreEditorOriginal(targetId = 'quoteContent') {
+      const backup = targetId === 'quoteContentEn' ? editorEnOriginalBackup : editorOriginalBackup;
+      if (!backup) return;
+      const ta = document.getElementById(targetId);
+      if (!ta) return;
+      ta.value = backup;
+      if (targetId === 'quoteContentEn') updateEditorEnCharCount();
+      else updateEditorCharCount();
     }
 
     function updateRestoreButtonUI() {
@@ -5569,6 +5609,13 @@
       } else {
         btn.classList.add('hidden');
       }
+    }
+
+    function updateRestoreEnButtonUI() {
+      const btn = document.getElementById('btnRestoreEnOriginal');
+      const ta = document.getElementById('quoteContentEn');
+      if (!btn || !ta) return;
+      btn.classList.toggle('hidden', !editorEnOriginalBackup || editorEnOriginalBackup === ta.value);
     }
 
     function updateEditorCharCount() {
